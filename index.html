@@ -515,12 +515,34 @@ async function cargarDatos(){
     const r=await fetch(GAS_URL+'?action=getAll');
     const data=await r.json();
     if(data && typeof data==='object'){
-      // GAS siempre gana — reemplaza los datos locales
       ['hosp','uci','endo','def'].forEach(s=>{
-        if(Array.isArray(data[s])) DB[s]=data[s];
+        if(Array.isArray(data[s])){
+          // Normalizar fechas que vienen como ISO string desde Sheets
+          DB[s]=data[s].map(rec=>{
+            const camposFecha=['fecha','fechaIngreso','fechaNac','fechaProcedimiento',
+              'fechaEgreso','accesoIV1Fecha','accesoIV2Fecha','sondaFoleyFecha',
+              'sngFecha','drenaje1Fecha','drenaje2Fecha','soporteRespFecha',
+              'ventMecFecha','caídaFecha','fechaDefuncion','fechaIngresoTanatorio'];
+            const camposHora=['horaIngreso','horaEgreso','horaDefuncion',
+              'horaIngresoTanatorio','horaEgresoTanatorio'];
+            camposFecha.forEach(c=>{
+              if(rec[c] && typeof rec[c]==='string' && rec[c].includes('T')){
+                rec[c]=rec[c].split('T')[0];
+              }
+            });
+            camposHora.forEach(c=>{
+              if(rec[c] && typeof rec[c]==='string' && rec[c].includes('T')){
+                const d=new Date(rec[c]);
+                const hh=d.getUTCHours(), mm=d.getUTCMinutes();
+                rec[c]=String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0');
+              }
+            });
+            return rec;
+          });
+        }
       });
       recalcNid();
-      guardarLocal(); // actualizar caché con datos de GAS
+      guardarLocal();
     }
   }catch(e){
     console.error('Error cargando GAS:', e);
