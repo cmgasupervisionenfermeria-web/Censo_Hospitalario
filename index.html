@@ -201,7 +201,7 @@ tbody tr:last-child{border-bottom:none}
           <th>Aislamiento</th><th>Monitoreo</th><th>Acceso IV</th><th>Sonda Foley</th><th>SNG</th>
           <th>Drenajes</th><th>Ostomía</th><th>Sop. Resp.</th><th>R.Caída</th><th>R.LPP</th>
           <th>⚠ Caída</th><th>⚠ LPP</th>
-          <th>Medicamentos AR</th><th>Transfusión</th><th>NAS</th><th></th>
+          <th>Medicamentos AR</th><th>Transfusión</th><th>Dieta</th><th>NAS</th><th></th>
         </tr></thead>
         <tbody id="hosp-tbody"></tbody>
       </table>
@@ -235,7 +235,7 @@ tbody tr:last-child{border-bottom:none}
           <th>Aislamiento</th><th>Monitoreo</th><th>Acceso IV</th><th>Sonda Foley</th><th>SNG</th>
           <th>Drenajes</th><th>Ostomía</th><th>Sop. Resp.</th><th>Vent. Mec.</th><th>R.Caída</th><th>R.LPP</th>
           <th>⚠ Caída</th><th>⚠ LPP</th>
-          <th>Medicamentos AR</th><th>Transfusión</th><th>NAS</th><th></th>
+          <th>Medicamentos AR</th><th>Transfusión</th><th>Dieta</th><th>NAS</th><th></th>
         </tr></thead>
         <tbody id="uci-tbody"></tbody>
       </table>
@@ -590,7 +590,7 @@ function renderHosp(){
     <td><b>${r.habitacion||'—'}</b></td>
     <td style="font-size:11px;white-space:nowrap">${r.fechaIngreso||'—'}<br><span style="color:var(--gris4)">${r.horaIngreso||''}</span></td>
     <td style="text-align:center;font-weight:600">${diasEstancia(r.fechaIngreso)}</td>
-    <td style="max-width:140px;font-weight:500">${r.nombre||'—'}</td>
+    <td style="max-width:140px;font-weight:500;cursor:pointer;color:var(--az2);text-decoration:underline" onclick="requirePin(()=>abrirModalPaciente(${r.id},'hosp'))">${r.nombre||'—'}</td>
     <td style="font-family:'DM Mono',monospace;font-size:11px">${r.expediente||'—'}</td>
     <td><span class="badge ${r.sexo==='M'?'b-m':'b-f'}">${r.sexo||'—'}</span></td>
     <td style="text-align:center">${r.edad||'—'}</td>
@@ -613,6 +613,7 @@ function renderHosp(){
     <td style="text-align:center;font-size:11px">${r['lppEvento']==='Sí'?`<span style="color:var(--rojo);font-weight:700">⚠ ${r.lppGrado||'Sí'}</span>`:'—'}</td>
     <td style="font-size:11px;max-width:120px">${[r.med1,r.med2,r.med3].filter(Boolean).join(', ')||'—'}</td>
     <td style="font-size:11px">${r.transfusion&&r.transfusion!=='No'?`${r.transfusion}${r.hemoUnidades?' ('+r.hemoUnidades+' u)':''}`:r.transfusion||'—'}</td>
+    <td style="font-size:11px">${r.dieta||'—'}</td>
     <td>${nasChip(r)}</td>
     <td><button class="btn btn-ghost btn-sm" onclick="requirePin(()=>abrirModalPaciente(${r.id},'hosp'))">✏</button></td>
   </tr>`;}).join('');
@@ -634,7 +635,7 @@ function renderUCI(){
     <td><b>${r.habitacion||'—'}</b></td>
     <td style="font-size:11px;white-space:nowrap">${r.fechaIngreso||'—'}<br><span style="color:var(--gris4)">${r.horaIngreso||''}</span></td>
     <td style="text-align:center;font-weight:600">${diasEstancia(r.fechaIngreso)}</td>
-    <td style="max-width:140px;font-weight:500">${r.nombre||'—'}</td>
+    <td style="max-width:140px;font-weight:500;cursor:pointer;color:var(--az2);text-decoration:underline" onclick="requirePin(()=>abrirModalPaciente(${r.id},'hosp'))">${r.nombre||'—'}</td>
     <td style="font-family:'DM Mono',monospace;font-size:11px">${r.expediente||'—'}</td>
     <td><span class="badge ${r.sexo==='M'?'b-m':'b-f'}">${r.sexo||'—'}</span></td>
     <td style="text-align:center">${r.edad||'—'}</td>
@@ -658,6 +659,7 @@ function renderUCI(){
     <td style="text-align:center;font-size:11px">${r['lppEvento']==='Sí'?`<span style="color:var(--rojo);font-weight:700">⚠ ${r.lppGrado||'Sí'}</span>`:'—'}</td>
     <td style="font-size:11px;max-width:120px">${[r.med1,r.med2,r.med3].filter(Boolean).join(', ')||'—'}</td>
     <td style="font-size:11px">${r.transfusion&&r.transfusion!=='No'?`${r.transfusion}${r.hemoUnidades?' ('+r.hemoUnidades+' u)':''}`:r.transfusion||'—'}</td>
+    <td style="font-size:11px">${r.dieta||'—'}</td>
     <td>${nasChip(r)}</td>
     <td><button class="btn btn-ghost btn-sm" onclick="requirePin(()=>abrirModalPaciente(${r.id},'uci'))">✏</button></td>
   </tr>`;}).join('');
@@ -809,6 +811,9 @@ function abrirModalPaciente(id, seccion){
       <div class="form-group"><label>Medicamento 3</label><input id="p-med3" value="${rec.med3||''}" list="meds-list"></div>
       <div class="form-group"><label>Transfusión sanguínea</label><select id="p-transf"><option value="">—</option>${['Paquete globular','Plasma','Plaquetas','Crioprecipitados','No'].map(t=>`<option${rec.transfusion===t?' selected':''}>${t}</option>`).join('')}</select></div>
       <div class="form-group"><label>Hemocomponentes (unidades)</label><input type="number" id="p-hemounid" value="${rec.hemoUnidades||''}" min="0" max="20" placeholder="Ej. 2"></div>
+      <div class="form-group"><label>Dieta</label>
+        <select id="p-dieta"><option value="">—</option>${['Normal','Blanda','Líquida','Líquida clara','Hipocalórica','Hiposódica','Diabética','Ayuno','NPT','NE','Sin restricción'].map(d=>`<option value="${d}"${rec.dieta===d?' selected':''}>${d}</option>`).join('')}</select>
+      </div>
     </div>
     <div class="section-lbl">Egreso</div>
     <div class="form-grid-3">
@@ -879,6 +884,7 @@ async function guardarPaciente(id, seccion){
     med3:document.getElementById('p-med3').value.trim(),
     transfusion:document.getElementById('p-transf').value,
     hemoUnidades:document.getElementById('p-hemounid').value,
+    dieta:document.getElementById('p-dieta').value,
   };
   if(id){ const i=DB[seccion].findIndex(r=>r.id===id); if(i>-1) DB[seccion][i]=d; }
   else DB[seccion].push(d);
