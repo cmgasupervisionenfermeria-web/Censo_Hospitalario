@@ -369,10 +369,10 @@ function renderDef(){ const data=DB.def.filter(r=>r.fecha===dk(cur)); const tbod
 
 // ── MODAL PACIENTE ────────────────────────────────────────────────────────────
 function abrirModalPaciente(id,seccion){ const rec=id?DB[seccion].find(r=>r.id===id)||{}:{}; const isUCI=seccion==='uci'; const habOpts=isUCI?['UCI 1','UCI 2','UCIM 1','UCIM 2'].map(h=>`<option value="${h}"${rec.habitacion===h?' selected':''}>${h}</option>`).join(''):Array.from({length:18},(_,i)=>`<option value="${i+1}"${rec.habitacion==i+1?' selected':''}>${i+1}</option>`).join('');
-document.getElementById('modalPacContent').innerHTML=`<div class="modal-title">${id?'Editar':'Nuevo'} paciente — ${isUCI?'UCI/UCIM':'Hospitalización'}<button class="modal-close" onclick="closeModal('modalPac')">×</button></div><div class="section-lbl">Datos generales</div><div class="form-grid-3"><div class="form-group"><label>${isUCI?'Sala':'Habitación'}</label><select id="p-hab">${habOpts}</select></div><div class="form-group"><label>Fecha ingreso</label><input type="date" id="p-fing" value="${rec.fechaIngreso||dk(cur)}"></div><div class="form-group"><label>Hora ingreso</label><input type="text" id="p-hing" value="${rec.horaIngreso||''}" placeholder="HH:MM" maxlength="5" style="font-family:'DM Mono',monospace" oninput="fmtHora(this)"></div><div class="form-group full"><label>Nombre completo</label><input id="p-nombre" value="${rec.nombre||''}" placeholder="Apellidos, Nombre"></div><div class="form-group"><label>N° Expediente</label><input id="p-exp" value="${rec.expediente||''}"></div><div class="form-group"><label>Fecha de nacimiento</label><input type="date" id="p-fnac" value="${rec.fechaNac||''}" onchange="calcularEdad('p-fnac','p-edad')"></div><div class="form-group"><label>Sexo</label><select id="p-sexo"><option value="">—</option><option value="M"${rec.sexo==='M'?' selected':''}>Masculino</option><option value="F"${rec.sexo==='F'?' selected':''}>Femenino</option></select></div><div class="form-group"><label>Edad</label><input type="number" id="p-edad" value="${rec.edad||''}" min="0" max="120" placeholder="Calculada automáticamente"></div><div class="form-group"><label>Médico tratante</label><input id="p-medico" value="${rec.medico||''}"></div><div class="form-group"><label>Aseguradora</label><input id="p-aseg" value="${rec.aseguradora||''}"></div></div><div class="section-lbl">Clínico</div><div class="form-grid"><div class="form-group full"><label>Diagnóstico</label><input id="p-diag" value="${rec.diagnostico||''}"></div><div class="form-group full"><label>Procedimiento quirúrgico</label><input id="p-proc" value="${rec.procedimiento||''}"></div><div class="form-group"><label>Fecha del procedimiento</label><input type="date" id="p-fproc" value="${rec.fechaProcedimiento||''}"></div><div class="form-group"><label>Alergias</label><input id="p-alergias" value="${rec.alergias||''}"></div><div class="form-group"><label>Glasgow</label><input type="number" id="p-glasgow" value="${rec.glasgow||''}" min="3" max="15"></div><div class="form-group"><label>Aislamiento</label><select id="p-aisl"><option value="">—</option>${['Estándar','Contacto','Gotas','Vía aérea','Protector','Contacto plus'].map(a=>`<option${rec.aislamiento===a?' selected':''}>${a}</option>`).join('')}</select></div><div class="form-group"><label>Monitoreo</label><select id="p-mon"><option value="">—</option>${['Intermitente','Continuo'].map(m=>`<option${rec.monitoreo===m?' selected':''}>${m}</option>`).join('')}</select></div><div class="form-group full"><label>Observaciones</label><input id="p-estclin" value="${rec.estadoClin||''}" placeholder="Notas clínicas relevantes del turno"></div></div><div class="section-lbl">Dispositivos invasivos</div><div class="form-grid-3"><div class="form-group"><label>Acceso IV 1</label><input id="p-iv1" value="${rec.accesoIV||''}" placeholder="CPC, CVC…"></div><div class="form-group"><label>Fecha instalación IV 1</label><input type="date" id="p-iv1f" value="${rec.accesoIV1Fecha||''}"></div><div class="form-group"><label>Acceso IV 2</label><input id="p-iv2" value="${rec.accesoIV2||''}"></div><div class="form-group"><label>Fecha instalación IV 2</label><input type="date" id="p-iv2f" value="${rec.accesoIV2Fecha||''}"></div><div class="form-group"><label>Sonda Foley</label><select id="p-foley"><option value="">—</option><option${rec.sondaFoley==='Sí'?' selected':''}>Sí</option><option${rec.sondaFoley==='No'?' selected':''}>No</option></select></div><div class="form-group"><label>Fecha Foley</label><input type="date" id="p-foleyf" value="${rec.sondaFoleyFecha||''}"></div><div class="form-group"><label>Sonda nasogástrica</label><select id="p-sng"><option value="">—</option><option${rec.sng==='Sí'?' selected':''}>Sí</option><option${rec.sng==='No'?' selected':''}>No</option></select></div><div class="form-group"><label>Fecha SNG</label><input type="date" id="p-sngf" value="${rec.sngFecha||''}"></div><div class="form-group"><label>Drenaje 1</label><input id="p-dr1" value="${rec.drenaje1||''}"></div><div class="form-group"><label>Fecha drenaje 1</label><input type="date" id="p-dr1f" value="${rec.drenaje1Fecha||''}"></div><div class="form-group"><label>Drenaje 2</label><input id="p-dr2" value="${rec.drenaje2||''}"></div><div class="form-group"><label>Fecha drenaje 2</label><input type="date" id="p-dr2f" value="${rec.drenaje2Fecha||''}"></div><div class="form-group"><label>Ostomía</label><input id="p-ost" value="${rec.ostomia||''}"></div></div><div class="section-lbl">Soporte respiratorio</div><div class="form-grid-3"><div class="form-group"><label>Dispositivo</label><input id="p-disp-resp" value="${rec.dispositivoResp||''}" placeholder="Puntas nasales, mascarilla…"></div><div class="form-group"><label>Lts/min</label><input type="number" id="p-lts" value="${rec.ltsMin||''}" min="0" step=".5"></div><div class="form-group"><label>Alto flujo</label><select id="p-altof"><option value="">—</option><option${rec.altoFlujo==='Sí'?' selected':''}>Sí</option><option${rec.altoFlujo==='No'?' selected':''}>No</option></select></div><div class="form-group"><label>Fecha instalación</label><input type="date" id="p-respf" value="${rec.soporteRespFecha||''}"></div><div class="form-group"><label>Ventilación mecánica</label><select id="p-ventmec"><option value="">—</option><option${rec.ventMec==='Sí'?' selected':''}>Sí</option><option${rec.ventMec==='No'?' selected':''}>No</option></select></div><div class="form-group"><label>Fecha VM</label><input type="date" id="p-ventmecf" value="${rec.ventMecFecha||''}"></div></div><div class="section-lbl">Escalas y dependencia</div><div class="form-grid-4"><div class="form-group"><label>Riesgo de caída (Downton)</label><input type="number" id="p-caida" value="${rec.riesgoCaida||''}" min="0"></div><div class="form-group"><label>Riesgo LPP (Braden)</label><input type="number" id="p-lpp" value="${rec.riesgoLPP||''}" min="0" max="23"></div><div class="form-group"><label>Movilización</label><select id="p-movil"><option value="">—</option>${['Independiente','Dependiente','Parcialmente dependiente'].map(m=>`<option${rec.movilizacion===m?' selected':''}>${m}</option>`).join('')}</select></div><div class="form-group"><label>Higiene</label><select id="p-hig"><option value="">—</option>${['Baño en regadera','Baño en cama','Baño en silla'].map(h=>`<option${rec.higiene===h?' selected':''}>${h}</option>`).join('')}</select></div></div><div class="section-lbl">Eventos adversos — Caída y LPP</div><div class="form-grid-4"><div class="form-group"><label>¿Presentó caída?</label><select id="p-caida-ev"><option value="">—</option><option${rec.caídaEvento==='Sí'?' selected':''}>Sí</option><option${rec.caídaEvento==='No'?' selected':''}>No</option></select></div><div class="form-group"><label>Fecha de caída</label><input type="date" id="p-caida-fecha" value="${rec.caídaFecha||''}"></div><div class="form-group"><label>¿Presentó LPP?</label><select id="p-lpp-ev"><option value="">—</option><option${rec.lppEvento==='Sí'?' selected':''}>Sí</option><option${rec.lppEvento==='No'?' selected':''}>No</option></select></div><div class="form-group"><label>Grado LPP</label><select id="p-lpp-grado"><option value="">—</option>${['Grado I','Grado II','Grado III','Grado IV'].map(g=>`<option${rec.lppGrado===g?' selected':''}>${g}</option>`).join('')}</select></div></div><div class="section-lbl">Medicamentos de alto riesgo</div><div class="form-grid-3"><div class="form-group"><label>Medicamento 1</label><input id="p-med1" value="${rec.med1||''}" list="meds-list" placeholder="Vasopresor, Heparina…"><datalist id="meds-list"><option>Vasopresor</option><option>Sedación</option><option>Insulina</option><option>Heparina</option><option>Quimioterapia</option><option>Electrolitos</option></datalist></div><div class="form-group"><label>Medicamento 2</label><input id="p-med2" value="${rec.med2||''}" list="meds-list"></div><div class="form-group"><label>Medicamento 3</label><input id="p-med3" value="${rec.med3||''}" list="meds-list"></div><div class="form-group"><label>Transfusión sanguínea</label><select id="p-transf"><option value="">—</option>${['Paquete globular','Plasma','Plaquetas','Crioprecipitados','No'].map(t=>`<option${rec.transfusion===t?' selected':''}>${t}</option>`).join('')}</select></div><div class="form-group"><label>Hemocomponentes (unidades)</label><input type="number" id="p-hemounid" value="${rec.hemoUnidades||''}" min="0" max="20" placeholder="Ej. 2"></div><div class="form-group"><label>Dieta</label><select id="p-dieta"><option value="">—</option>${['Normal','Blanda','Líquida','Líquida clara','Hipocalórica','Hiposódica','Diabética','Ayuno','NPT','NE','Sin restricción'].map(d=>`<option value="${d}"${rec.dieta===d?' selected':''}>${d}</option>`).join('')}</select></div></div><div class="section-lbl">Egreso</div><div class="form-grid-3"><div class="form-group"><label>Fecha egreso</label><input type="date" id="p-feg" value="${rec.fechaEgreso||''}"></div><div class="form-group"><label>Hora egreso</label><input type="text" id="p-heg" value="${rec.horaEgreso||''}" placeholder="HH:MM" maxlength="5" style="font-family:'DM Mono',monospace" oninput="fmtHora(this)"></div></div><div class="form-actions">${id?`<button class="btn btn-danger btn-sm" onclick="eliminar(${id},'${seccion}','modalPac')">🗑 Eliminar</button>`:''}<button class="btn btn-ghost" onclick="closeModal('modalPac')">Cancelar</button><button class="btn btn-success" onclick="guardarPaciente(${id||0},'${seccion}')">✓ Guardar</button></div>`;
+document.getElementById('modalPacContent').innerHTML=`<div class="modal-title">${id?'Editar':'Nuevo'} paciente — ${isUCI?'UCI/UCIM':'Hospitalización'}<button class="modal-close" onclick="closeModal('modalPac')">×</button></div><div class="section-lbl">Datos generales</div><div class="form-grid-3"><div class="form-group"><label>${isUCI?'Sala':'Habitación'}</label><select id="p-hab">${habOpts}</select></div><div class="form-group"><label>Fecha ingreso</label><input type="date" id="p-fing" value="${rec.fechaIngreso||dk(cur)}"></div><div class="form-group"><label>Hora ingreso</label><input type="text" id="p-hing" value="${rec.horaIngreso||''}" placeholder="HH:MM" maxlength="5" style="font-family:'DM Mono',monospace" oninput="fmtHora(this)"></div><div class="form-group full"><label>Nombre completo</label><input id="p-nombre" value="${rec.nombre||''}" placeholder="Apellidos, Nombre"></div><div class="form-group"><label>N° Expediente</label><input id="p-exp" value="${rec.expediente||''}"></div><div class="form-group"><label>Fecha de nacimiento</label><input type="date" id="p-fnac" value="${rec.fechaNac||''}" onchange="calcularEdad('p-fnac','p-edad')"></div><div class="form-group"><label>Sexo</label><select id="p-sexo"><option value="">—</option><option value="M"${rec.sexo==='M'?' selected':''}>Masculino</option><option value="F"${rec.sexo==='F'?' selected':''}>Femenino</option></select></div><div class="form-group"><label>Edad</label><input type="number" id="p-edad" value="${rec.edad||''}" min="0" max="120" placeholder="Calculada automáticamente"></div><div class="form-group"><label>Médico tratante</label><input id="p-medico" value="${rec.medico||''}"></div><div class="form-group"><label>Aseguradora</label><input id="p-aseg" value="${rec.aseguradora||''}"></div></div><div class="section-lbl">Clínico</div><div class="form-grid"><div class="form-group full"><label>Diagnóstico</label><input id="p-diag" value="${rec.diagnostico||''}"></div><div class="form-group full"><label>Procedimiento quirúrgico</label><input id="p-proc" value="${rec.procedimiento||''}"></div><div class="form-group"><label>Fecha del procedimiento</label><input type="date" id="p-fproc" value="${rec.fechaProcedimiento||''}"></div><div class="form-group"><label>Alergias</label><input id="p-alergias" value="${rec.alergias||''}"></div><div class="form-group"><label>Glasgow</label><input type="number" id="p-glasgow" value="${rec.glasgow||''}" min="3" max="15"></div><div class="form-group"><label>Aislamiento</label><select id="p-aisl"><option value="">—</option>${['Estándar','Contacto','Gotas','Vía aérea','Protector','Contacto plus'].map(a=>`<option${rec.aislamiento===a?' selected':''}>${a}</option>`).join('')}</select></div><div class="form-group"><label>Monitoreo</label><select id="p-mon"><option value="">—</option>${['Intermitente','Continuo'].map(m=>`<option${rec.monitoreo===m?' selected':''}>${m}</option>`).join('')}</select></div><div class="form-group full"><label>Observaciones</label><input id="p-estclin" value="${rec.estadoClin||''}" placeholder="Notas clínicas relevantes del turno"></div></div><div class="section-lbl">Dispositivos invasivos</div><div class="form-grid-3"><div class="form-group"><label>Acceso IV 1</label><input id="p-iv1" value="${rec.accesoIV||''}" placeholder="CPC, CVC…"></div><div class="form-group"><label>Fecha instalación IV 1</label><input type="date" id="p-iv1f" value="${rec.accesoIV1Fecha||''}"></div><div class="form-group"><label>Acceso IV 2</label><input id="p-iv2" value="${rec.accesoIV2||''}"></div><div class="form-group"><label>Fecha instalación IV 2</label><input type="date" id="p-iv2f" value="${rec.accesoIV2Fecha||''}"></div><div class="form-group"><label>Sonda Foley</label><select id="p-foley"><option value="">—</option><option${rec.sondaFoley==='Sí'?' selected':''}>Sí</option><option${rec.sondaFoley==='No'?' selected':''}>No</option></select></div><div class="form-group"><label>Fecha Foley</label><input type="date" id="p-foleyf" value="${rec.sondaFoleyFecha||''}"></div><div class="form-group"><label>Sonda nasogástrica</label><select id="p-sng"><option value="">—</option><option${rec.sng==='Sí'?' selected':''}>Sí</option><option${rec.sng==='No'?' selected':''}>No</option></select></div><div class="form-group"><label>Fecha SNG</label><input type="date" id="p-sngf" value="${rec.sngFecha||''}"></div><div class="form-group"><label>Drenaje 1</label><input id="p-dr1" value="${rec.drenaje1||''}"></div><div class="form-group"><label>Fecha drenaje 1</label><input type="date" id="p-dr1f" value="${rec.drenaje1Fecha||''}"></div><div class="form-group"><label>Drenaje 2</label><input id="p-dr2" value="${rec.drenaje2||''}"></div><div class="form-group"><label>Fecha drenaje 2</label><input type="date" id="p-dr2f" value="${rec.drenaje2Fecha||''}"></div><div class="form-group"><label>Ostomía</label><input id="p-ost" value="${rec.ostomia||''}"></div></div><div class="section-lbl">Soporte respiratorio</div><div class="form-grid-3"><div class="form-group"><label>Dispositivo</label><input id="p-disp-resp" value="${rec.dispositivoResp||''}" placeholder="Puntas nasales, mascarilla…"></div><div class="form-group"><label>Lts/min</label><input type="number" id="p-lts" value="${rec.ltsMin||''}" min="0" step=".5"></div><div class="form-group"><label>Alto flujo</label><select id="p-altof"><option value="">—</option><option${rec.altoFlujo==='Sí'?' selected':''}>Sí</option><option${rec.altoFlujo==='No'?' selected':''}>No</option></select></div><div class="form-group"><label>Fecha instalación</label><input type="date" id="p-respf" value="${rec.soporteRespFecha||''}"></div><div class="form-group"><label>Ventilación mecánica</label><select id="p-ventmec"><option value="">—</option><option${rec.ventMec==='Sí'?' selected':''}>Sí</option><option${rec.ventMec==='No'?' selected':''}>No</option></select></div><div class="form-group"><label>Fecha VM</label><input type="date" id="p-ventmecf" value="${rec.ventMecFecha||''}"></div></div><div class="section-lbl">Escalas y dependencia</div><div class="form-grid-4"><div class="form-group"><label>Riesgo de caída (Downton)</label><input type="number" id="p-caida" value="${rec.riesgoCaida||''}" min="0"></div><div class="form-group"><label>Riesgo LPP (Braden)</label><input type="number" id="p-lpp" value="${rec.riesgoLPP||''}" min="0" max="23"></div><div class="form-group"><label>Movilización</label><select id="p-movil"><option value="">—</option>${['Independiente','Dependiente','Parcialmente dependiente'].map(m=>`<option${rec.movilizacion===m?' selected':''}>${m}</option>`).join('')}</select></div><div class="form-group"><label>Higiene</label><select id="p-hig"><option value="">—</option>${['Baño en regadera','Baño en cama','Baño en silla'].map(h=>`<option${rec.higiene===h?' selected':''}>${h}</option>`).join('')}</select></div></div><div class="section-lbl">Eventos adversos — Caída, LPP e Infecciones</div><div class="form-grid-4"><div class="form-group"><label>¿Presentó caída?</label><select id="p-caida-ev"><option value="">—</option><option${rec.caídaEvento==='Sí'?' selected':''}>Sí</option><option${rec.caídaEvento==='No'?' selected':''}>No</option></select></div><div class="form-group"><label>Fecha de caída</label><input type="date" id="p-caida-fecha" value="${rec.caídaFecha||''}"></div><div class="form-group"><label>¿Presentó LPP?</label><select id="p-lpp-ev"><option value="">—</option><option${rec.lppEvento==='Sí'?' selected':''}>Sí</option><option${rec.lppEvento==='No'?' selected':''}>No</option></select></div><div class="form-group"><label>Grado LPP</label><select id="p-lpp-grado"><option value="">—</option>${['Grado I','Grado II','Grado III','Grado IV'].map(g=>`<option${rec.lppGrado===g?' selected':''}>${g}</option>`).join('')}</select></div><div class="form-group"><label>¿Infección detectada?</label><select id="p-inf-ev"><option value="">—</option><option${rec.infeccionEvento==='Sí'?' selected':''}>Sí</option><option${rec.infeccionEvento==='No'?' selected':''}>No</option></select></div><div class="form-group"><label>Tipo de infección</label><select id="p-inf-tipo"><option value="">—</option>${['ITUAC (sonda Foley)','IPPSC (catéter IV)','NAVM (ventilación mecánica)','Neumonía','IHQ (herida quirúrgica)','Sepsis','Otra'].map(t=>`<option value="${t}"${rec.infeccionTipo===t?' selected':''}>${t}</option>`).join('')}</select></div><div class="form-group"><label>Fecha detección</label><input type="date" id="p-inf-fecha" value="${rec.infeccionFecha||''}"></div></div><div class="section-lbl">Medicamentos de alto riesgo</div><div class="form-grid-3"><div class="form-group"><label>Medicamento 1</label><input id="p-med1" value="${rec.med1||''}" list="meds-list" placeholder="Vasopresor, Heparina…"><datalist id="meds-list"><option>Vasopresor</option><option>Sedación</option><option>Insulina</option><option>Heparina</option><option>Quimioterapia</option><option>Electrolitos</option></datalist></div><div class="form-group"><label>Medicamento 2</label><input id="p-med2" value="${rec.med2||''}" list="meds-list"></div><div class="form-group"><label>Medicamento 3</label><input id="p-med3" value="${rec.med3||''}" list="meds-list"></div><div class="form-group"><label>Transfusión sanguínea</label><select id="p-transf"><option value="">—</option>${['Paquete globular','Plasma','Plaquetas','Crioprecipitados','No'].map(t=>`<option${rec.transfusion===t?' selected':''}>${t}</option>`).join('')}</select></div><div class="form-group"><label>Hemocomponentes (unidades)</label><input type="number" id="p-hemounid" value="${rec.hemoUnidades||''}" min="0" max="20" placeholder="Ej. 2"></div><div class="form-group"><label>Dieta</label><select id="p-dieta"><option value="">—</option>${['Normal','Blanda','Líquida','Líquida clara','Hipocalórica','Hiposódica','Diabética','Ayuno','NPT','NE','Sin restricción'].map(d=>`<option value="${d}"${rec.dieta===d?' selected':''}>${d}</option>`).join('')}</select></div></div><div class="section-lbl">Egreso</div><div class="form-grid-3"><div class="form-group"><label>Fecha egreso</label><input type="date" id="p-feg" value="${rec.fechaEgreso||''}"></div><div class="form-group"><label>Hora egreso</label><input type="text" id="p-heg" value="${rec.horaEgreso||''}" placeholder="HH:MM" maxlength="5" style="font-family:'DM Mono',monospace" oninput="fmtHora(this)"></div></div><div class="form-actions">${id?`<button class="btn btn-danger btn-sm" onclick="eliminar(${id},'${seccion}','modalPac')">🗑 Eliminar</button>`:''}<button class="btn btn-ghost" onclick="closeModal('modalPac')">Cancelar</button><button class="btn btn-success" onclick="guardarPaciente(${id||0},'${seccion}')">✓ Guardar</button></div>`;
 document.getElementById('modalPac').classList.add('open'); }
 
-async function guardarPaciente(id,seccion){ const d={ id:id||nid++,fecha:dk(cur),turno, habitacion:document.getElementById('p-hab').value, fechaIngreso:document.getElementById('p-fing').value, horaIngreso:document.getElementById('p-hing').value, nombre:document.getElementById('p-nombre').value.trim(), expediente:document.getElementById('p-exp').value.trim().toUpperCase(), fechaNac:document.getElementById('p-fnac').value, sexo:document.getElementById('p-sexo').value, edad:document.getElementById('p-edad').value, medico:document.getElementById('p-medico').value.trim(), aseguradora:document.getElementById('p-aseg').value.trim(), diagnostico:document.getElementById('p-diag').value.trim(), procedimiento:document.getElementById('p-proc').value.trim(), fechaProcedimiento:document.getElementById('p-fproc').value, fechaEgreso:document.getElementById('p-feg').value, horaEgreso:document.getElementById('p-heg').value, alergias:document.getElementById('p-alergias').value.trim(), glasgow:document.getElementById('p-glasgow').value, aislamiento:document.getElementById('p-aisl').value, monitoreo:document.getElementById('p-mon').value, estadoClin:document.getElementById('p-estclin').value.trim(), accesoIV:document.getElementById('p-iv1').value.trim(), accesoIV1Fecha:document.getElementById('p-iv1f').value, accesoIV2:document.getElementById('p-iv2').value.trim(), accesoIV2Fecha:document.getElementById('p-iv2f').value, sondaFoley:document.getElementById('p-foley').value, sondaFoleyFecha:document.getElementById('p-foleyf').value, sng:document.getElementById('p-sng').value, sngFecha:document.getElementById('p-sngf').value, drenaje1:document.getElementById('p-dr1').value.trim(), drenaje1Fecha:document.getElementById('p-dr1f').value, drenaje2:document.getElementById('p-dr2').value.trim(), drenaje2Fecha:document.getElementById('p-dr2f').value, ostomia:document.getElementById('p-ost').value.trim(), dispositivoResp:document.getElementById('p-disp-resp').value.trim(), ltsMin:document.getElementById('p-lts').value, altoFlujo:document.getElementById('p-altof').value, soporteRespFecha:document.getElementById('p-respf').value, ventMec:document.getElementById('p-ventmec').value, ventMecFecha:document.getElementById('p-ventmecf').value, riesgoCaida:document.getElementById('p-caida').value, riesgoLPP:document.getElementById('p-lpp').value, movilizacion:document.getElementById('p-movil').value, higiene:document.getElementById('p-hig').value, caídaEvento:document.getElementById('p-caida-ev').value, caídaFecha:document.getElementById('p-caida-fecha').value, lppEvento:document.getElementById('p-lpp-ev').value, lppGrado:document.getElementById('p-lpp-grado').value, med1:document.getElementById('p-med1').value.trim(), med2:document.getElementById('p-med2').value.trim(), med3:document.getElementById('p-med3').value.trim(), transfusion:document.getElementById('p-transf').value, hemoUnidades:document.getElementById('p-hemounid').value, dieta:document.getElementById('p-dieta').value }; if(id){ const i=DB[seccion].findIndex(r=>r.id===id); if(i>-1) DB[seccion][i]=d; } else DB[seccion].push(d); showLoader('💾 Guardando…'); await apiCall({action:id?'update':'save',section:seccion,record:d}); hideLoader(); closeModal('modalPac'); if(seccion==='hosp') renderHosp(); else renderUCI(); toast('✓ Paciente guardado'); }
+async function guardarPaciente(id,seccion){ const d={ id:id||nid++,fecha:dk(cur),turno, habitacion:document.getElementById('p-hab').value, fechaIngreso:document.getElementById('p-fing').value, horaIngreso:document.getElementById('p-hing').value, nombre:document.getElementById('p-nombre').value.trim(), expediente:document.getElementById('p-exp').value.trim().toUpperCase(), fechaNac:document.getElementById('p-fnac').value, sexo:document.getElementById('p-sexo').value, edad:document.getElementById('p-edad').value, medico:document.getElementById('p-medico').value.trim(), aseguradora:document.getElementById('p-aseg').value.trim(), diagnostico:document.getElementById('p-diag').value.trim(), procedimiento:document.getElementById('p-proc').value.trim(), fechaProcedimiento:document.getElementById('p-fproc').value, fechaEgreso:document.getElementById('p-feg').value, horaEgreso:document.getElementById('p-heg').value, alergias:document.getElementById('p-alergias').value.trim(), glasgow:document.getElementById('p-glasgow').value, aislamiento:document.getElementById('p-aisl').value, monitoreo:document.getElementById('p-mon').value, estadoClin:document.getElementById('p-estclin').value.trim(), accesoIV:document.getElementById('p-iv1').value.trim(), accesoIV1Fecha:document.getElementById('p-iv1f').value, accesoIV2:document.getElementById('p-iv2').value.trim(), accesoIV2Fecha:document.getElementById('p-iv2f').value, sondaFoley:document.getElementById('p-foley').value, sondaFoleyFecha:document.getElementById('p-foleyf').value, sng:document.getElementById('p-sng').value, sngFecha:document.getElementById('p-sngf').value, drenaje1:document.getElementById('p-dr1').value.trim(), drenaje1Fecha:document.getElementById('p-dr1f').value, drenaje2:document.getElementById('p-dr2').value.trim(), drenaje2Fecha:document.getElementById('p-dr2f').value, ostomia:document.getElementById('p-ost').value.trim(), dispositivoResp:document.getElementById('p-disp-resp').value.trim(), ltsMin:document.getElementById('p-lts').value, altoFlujo:document.getElementById('p-altof').value, soporteRespFecha:document.getElementById('p-respf').value, ventMec:document.getElementById('p-ventmec').value, ventMecFecha:document.getElementById('p-ventmecf').value, riesgoCaida:document.getElementById('p-caida').value, riesgoLPP:document.getElementById('p-lpp').value, movilizacion:document.getElementById('p-movil').value, higiene:document.getElementById('p-hig').value, caídaEvento:document.getElementById('p-caida-ev').value, caídaFecha:document.getElementById('p-caida-fecha').value, lppEvento:document.getElementById('p-lpp-ev').value, lppGrado:document.getElementById('p-lpp-grado').value, infeccionEvento:document.getElementById('p-inf-ev').value, infeccionTipo:document.getElementById('p-inf-tipo').value, infeccionFecha:document.getElementById('p-inf-fecha').value, med1:document.getElementById('p-med1').value.trim(), med2:document.getElementById('p-med2').value.trim(), med3:document.getElementById('p-med3').value.trim(), transfusion:document.getElementById('p-transf').value, hemoUnidades:document.getElementById('p-hemounid').value, dieta:document.getElementById('p-dieta').value }; if(id){ const i=DB[seccion].findIndex(r=>r.id===id); if(i>-1) DB[seccion][i]=d; } else DB[seccion].push(d); showLoader('💾 Guardando…'); await apiCall({action:id?'update':'save',section:seccion,record:d}); hideLoader(); closeModal('modalPac'); if(seccion==='hosp') renderHosp(); else renderUCI(); toast('✓ Paciente guardado'); }
 
 // ── MODAL PROCEDIMIENTO ───────────────────────────────────────────────────────
 function abrirModalProcedimiento(id){ const rec=id?DB.endo.find(r=>r.id===id)||{}:{}; document.getElementById('modalProcContent').innerHTML=`<div class="modal-title">${id?'Editar':'Nuevo'} procedimiento — Endoscopia / Urgencias<button class="modal-close" onclick="closeModal('modalProc')">×</button></div><div class="form-grid-3"><div class="form-group"><label>Sala</label><select id="e-sala"><option value="">—</option>${['Endoscopia','Urgencias'].map(s=>`<option${rec.sala===s?' selected':''}>${s}</option>`).join('')}</select></div><div class="form-group"><label>Fecha</label><input type="date" id="e-fecha" value="${rec.fechaIngreso||dk(cur)}"></div><div class="form-group"><label>Hora</label><input type="text" id="e-hora" value="${rec.horaIngreso||''}" placeholder="HH:MM" maxlength="5" style="font-family:'DM Mono',monospace" oninput="fmtHora(this)"></div><div class="form-group full"><label>Nombre del paciente</label><input id="e-nombre" value="${rec.nombre||''}" placeholder="Apellidos, Nombre"></div><div class="form-group"><label>N° Expediente</label><input id="e-exp" value="${rec.expediente||''}"></div><div class="form-group"><label>Fecha de nacimiento</label><input type="date" id="e-fnac" value="${rec.fechaNac||''}" onchange="calcularEdad('e-fnac','e-edad')"></div><div class="form-group"><label>Sexo</label><select id="e-sexo"><option value="">—</option><option value="M"${rec.sexo==='M'?' selected':''}>Masculino</option><option value="F"${rec.sexo==='F'?' selected':''}>Femenino</option></select></div><div class="form-group"><label>Edad</label><input type="number" id="e-edad" value="${rec.edad||''}" min="0" placeholder="Calculada automáticamente"></div><div class="form-group full"><label>Procedimiento quirúrgico</label><input id="e-proc" value="${rec.procedimiento||''}"></div><div class="form-group"><label>Especialidad</label><input id="e-esp" value="${rec.especialidad||''}"></div><div class="form-group"><label>Cirujano</label><input id="e-cir" value="${rec.cirujano||''}"></div><div class="form-group"><label>Anestesiólogo</label><input id="e-anest" value="${rec.anestesiologo||''}"></div><div class="form-group"><label>Tiempo quirúrgico (min)</label><input type="number" id="e-tqx" value="${rec.tiempoQx||''}" min="0"></div><div class="form-group"><label>Tipo</label><select id="e-tipo"><option value="">—</option>${['Programado','Urgente'].map(t=>`<option${rec.tipo===t?' selected':''}>${t}</option>`).join('')}</select></div><div class="form-group"><label>Aseguradora</label><input id="e-aseg" value="${rec.aseguradora||''}"></div></div><div class="form-actions">${id?`<button class="btn btn-danger btn-sm" onclick="eliminar(${id},'endo','modalProc')">🗑 Eliminar</button>`:''}<button class="btn btn-ghost" onclick="closeModal('modalProc')">Cancelar</button><button class="btn btn-success" onclick="guardarProcedimiento(${id||0})">✓ Guardar</button></div>`; document.getElementById('modalProc').classList.add('open'); }
@@ -393,6 +393,13 @@ function exportarCSV(seccion){ const data=seccion==='hosp'||seccion==='uci'?filt
 // ══════════════════════════════════════════════════════════════════════════════
 function diasEntreFechas(f1,f2){ if(!f1||!f2) return null; const d1=new Date(f1+'T12:00'), d2=new Date(f2+'T12:00'); const diff=Math.round((d2-d1)/(1000*60*60*24)); return diff>=0?diff:null; }
 
+// NAS helpers
+const NAS_NIVELES=['Básico','Moderado','Alta complejidad','Crítico'];
+const NAS_COLORS={'Básico':'var(--verde)','Moderado':'var(--amarillo)','Alta complejidad':'var(--naranja)','Crítico':'var(--rojo)'};
+const NAS_BGS={'Básico':'var(--verde3)','Moderado':'var(--amarillo3)','Alta complejidad':'var(--naranja3)','Crítico':'var(--rojo3)'};
+// Minutos de cuidados NAS por nivel (punto medio del rango)
+const NAS_MINS={'Básico':60,'Moderado':115,'Alta complejidad':195,'Crítico':280};
+
 function renderConcentrado(){
   const mes=parseInt(document.getElementById('con-mes').value);
   const anio=parseInt(document.getElementById('con-anio').value);
@@ -400,102 +407,149 @@ function renderConcentrado(){
   const inicioMes=`${anio}-${String(mes+1).padStart(2,'0')}-01`;
   const finMes=`${anio}-${String(mes+1).padStart(2,'0')}-${String(diasMes).padStart(2,'0')}`;
 
-  // Pacientes que estuvieron presentes al menos un día en el mes
   function perteneceAlMes(r){
-    const ing=r.fechaIngreso||r.fecha||'';
-    if(!ing) return false;
+    const ing=r.fechaIngreso||r.fecha||''; if(!ing) return false;
     if(ing>finMes) return false;
     const egr=r.fechaEgreso||'';
     if(egr&&egr<inicioMes) return false;
     return true;
   }
-
   const hosp=DB.hosp.filter(perteneceAlMes);
   const uci=DB.uci.filter(perteneceAlMes);
   const todos=[...hosp,...uci];
+
+  // Ingresos del mes (fechaIngreso dentro del rango)
+  const ingresosHosp=hosp.filter(r=>(r.fechaIngreso||r.fecha||'')>=inicioMes&&(r.fechaIngreso||r.fecha||'')<=finMes);
+  const ingresosUCI=uci.filter(r=>(r.fechaIngreso||r.fecha||'')>=inicioMes&&(r.fechaIngreso||r.fecha||'')<=finMes);
 
   // Egresos del mes
   const egresosHosp=hosp.filter(r=>r.fechaEgreso>=inicioMes&&r.fechaEgreso<=finMes);
   const egresosUCI=uci.filter(r=>r.fechaEgreso>=inicioMes&&r.fechaEgreso<=finMes);
   const totalEgresos=egresosHosp.length+egresosUCI.length;
 
-  // ── 1. OCUPACIÓN: pacientes-día ÷ (camas × días del mes) × 100 ──────────────
+  // ── Pacientes-día ─────────────────────────────────────────────────────────
   function pacDia(arr){
     return arr.reduce((sum,r)=>{
-      const ing=r.fechaIngreso||r.fecha||'';
-      const egr=r.fechaEgreso||finMes;
+      const ing=r.fechaIngreso||r.fecha||''; const egr=r.fechaEgreso||finMes;
       if(!ing) return sum;
-      const ie=ing<inicioMes?inicioMes:ing;
-      const fe=egr>finMes?finMes:egr;
-      const d=diasEntreFechas(ie,fe);
-      return sum+(d!==null?Math.max(0,d+1):0);
+      const ie=ing<inicioMes?inicioMes:ing; const fe=egr>finMes?finMes:egr;
+      const d=diasEntreFechas(ie,fe); return sum+(d!==null?Math.max(0,d+1):0);
     },0);
   }
-  const pdHosp=pacDia(hosp);
-  const pdUCI=pacDia(uci);
-  const pdTodos=pdHosp+pdUCI;
+  const pdHosp=pacDia(hosp), pdUCI=pacDia(uci), pdTodos=pdHosp+pdUCI;
+
+  // ── 1. OCUPACIÓN ──────────────────────────────────────────────────────────
   const ocupHosp=CAMAS_HOSP*diasMes>0?Math.round(pdHosp/(CAMAS_HOSP*diasMes)*1000)/10:null;
   const ocupUCI=(CAMAS_UCI+CAMAS_UCIM)*diasMes>0?Math.round(pdUCI/((CAMAS_UCI+CAMAS_UCIM)*diasMes)*1000)/10:null;
 
-  // ── 2. ESTANCIA PROMEDIO: Σ(fechaEgreso-fechaIngreso) ÷ egresos ─────────────
-  const sumaEstancia=[...egresosHosp,...egresosUCI].reduce((s,r)=>{
-    const d=diasEntreFechas(r.fechaIngreso||r.fecha,r.fechaEgreso);
-    return s+(d!==null?Math.max(1,d):0);
-  },0);
+  // ── 2. ESTANCIA PROMEDIO ──────────────────────────────────────────────────
+  const sumaEstancia=[...egresosHosp,...egresosUCI].reduce((s,r)=>{ const d=diasEntreFechas(r.fechaIngreso||r.fecha,r.fechaEgreso); return s+(d!==null?Math.max(1,d):0); },0);
   const estanciaPromedio=totalEgresos>0?Math.round(sumaEstancia/totalEgresos*10)/10:null;
 
-  // ── 3. ROTACIÓN DE CAMAS: egresos piso ÷ 18 ─────────────────────────────────
+  // ── 3. ROTACIÓN ───────────────────────────────────────────────────────────
   const rotacion=Math.round(egresosHosp.length/CAMAS_HOSP*10)/10;
 
-  // ── 4. INTERVALO DE SUSTITUCIÓN: horas entre egreso e ingreso siguiente misma hab ──
+  // ── 4. INTERVALO SUSTITUCIÓN ──────────────────────────────────────────────
   function calcIntervalo(arr){
     const porHab={};
     arr.forEach(r=>{ const h=String(r.habitacion||''); if(!h) return; if(!porHab[h]) porHab[h]=[]; porHab[h].push(r); });
-    const intervalos=[];
+    const iv=[];
     Object.values(porHab).forEach(pacs=>{
-      pacs.sort((a,b)=>{ const fa=(a.fechaIngreso||a.fecha||'')+'T'+(a.horaIngreso||'00:00'); const fb=(b.fechaIngreso||b.fecha||'')+'T'+(b.horaIngreso||'00:00'); return fa.localeCompare(fb); });
+      pacs.sort((a,b)=>((a.fechaIngreso||a.fecha||'')+'T'+(a.horaIngreso||'00:00')).localeCompare((b.fechaIngreso||b.fecha||'')+'T'+(b.horaIngreso||'00:00')));
       for(let i=0;i<pacs.length-1;i++){
-        const act=pacs[i], sig=pacs[i+1];
+        const act=pacs[i],sig=pacs[i+1];
         if(!act.fechaEgreso||!act.horaEgreso) continue;
-        const fingSig=sig.fechaIngreso||sig.fecha; if(!fingSig) continue;
-        const tsEgr=new Date(act.fechaEgreso+'T'+(act.horaEgreso||'00:00'));
-        const tsIng=new Date(fingSig+'T'+(sig.horaIngreso||'00:00'));
-        const hrs=(tsIng-tsEgr)/(1000*60*60);
-        if(hrs>=0&&hrs<720) intervalos.push(hrs);
+        const fs=sig.fechaIngreso||sig.fecha; if(!fs) continue;
+        const hrs=(new Date(fs+'T'+(sig.horaIngreso||'00:00'))-new Date(act.fechaEgreso+'T'+act.horaEgreso))/(1000*60*60);
+        if(hrs>=0&&hrs<720) iv.push(hrs);
       }
     });
-    if(!intervalos.length) return null;
-    return Math.round(intervalos.reduce((s,h)=>s+h,0)/intervalos.length*10)/10;
+    return iv.length?Math.round(iv.reduce((s,h)=>s+h,0)/iv.length*10)/10:null;
   }
   const intervaloSust=calcIntervalo([...DB.hosp,...DB.uci]);
 
-  // ── 5. REINGRESOS A 30 DÍAS: busca en TODO el DB, no solo mes actual ─────────
+  // ── 5. REINGRESOS 30 DÍAS ─────────────────────────────────────────────────
   let nReingresos=0;
-  const egresadosMes=[...egresosHosp,...egresosUCI];
   const todosConExp=[...DB.hosp,...DB.uci].filter(r=>r.expediente);
-  egresadosMes.forEach(egr=>{
+  [...egresosHosp,...egresosUCI].forEach(egr=>{
     if(!egr.expediente||!egr.fechaEgreso) return;
-    const tsEgr=new Date(egr.fechaEgreso+'T12:00');
-    const hay=todosConExp.some(r=>{ if(r.id===egr.id) return false; if(r.expediente!==egr.expediente) return false; const fI=r.fechaIngreso||r.fecha; if(!fI) return false; const tsI=new Date(fI+'T12:00'); const diff=(tsI-tsEgr)/(1000*60*60*24); return diff>0&&diff<=30; });
-    if(hay) nReingresos++;
+    const tsE=new Date(egr.fechaEgreso+'T12:00');
+    if(todosConExp.some(r=>r.id!==egr.id&&r.expediente===egr.expediente&&(()=>{ const fi=r.fechaIngreso||r.fecha; if(!fi) return false; const d=(new Date(fi+'T12:00')-tsE)/(1000*60*60*24); return d>0&&d<=30; })())){ nReingresos++; }
   });
   const pctReingresos=totalEgresos>0?Math.round(nReingresos/totalEgresos*1000)/10:null;
 
-  // ── 6. TASA DE CAÍDAS: caídas ÷ pacientes-día × 1000 ────────────────────────
-  const nCaidas=todos.filter(r=>r['caídaEvento']==='Sí').length;
-  const tasaCaidas=pdTodos>0?Math.round(nCaidas/pdTodos*10000)/10:null;
+  // ── 6. TASA CAÍDAS: (caídas ÷ pacientes-día) × 1000 ──────────────────────
+  const nCaidasH=hosp.filter(r=>r['caídaEvento']==='Sí').length;
+  const nCaidasU=uci.filter(r=>r['caídaEvento']==='Sí').length;
+  const nCaidas=nCaidasH+nCaidasU;
+  // FÓRMULA CORRECTA: caídas ÷ pacientes-día × 1000
+  const tasaCaidas=pdTodos>0?Math.round(nCaidas/pdTodos*1000*100)/100:null;
 
-  // ── 7. TASA LPP: LPP registradas ÷ pacientes hospitalizados × 100 ────────────
+  // ── 7. TASA LPP ───────────────────────────────────────────────────────────
   const nLPP=todos.filter(r=>r.lppEvento==='Sí').length;
   const tasaLPP=todos.length>0?Math.round(nLPP/todos.length*1000)/10:null;
 
-  // Estadísticas adicionales
-  const defuncionesMes=DB.def.filter(r=>r.fecha>=inicioMes&&r.fecha<=finMes).length;
-  const pctMort=todos.length>0?Math.round(defuncionesMes/todos.length*1000)/10:0;
-  const nTransf=todos.filter(r=>r.transfusion&&r.transfusion!=='No'&&r.transfusion!=='').length;
-  const nVM=todos.filter(r=>r.ventMec==='Sí').length;
+  // ── INFECCIONES ───────────────────────────────────────────────────────────
+  const infHosp=hosp.filter(r=>r.infeccionEvento==='Sí');
+  const infUCI=uci.filter(r=>r.infeccionEvento==='Sí');
+  const infTodos=[...infHosp,...infUCI];
+  const infCount={};
+  infTodos.forEach(r=>{ if(r.infeccionTipo){ infCount[r.infeccionTipo]=(infCount[r.infeccionTipo]||0)+1; } });
 
-  // ── Helper de tarjeta indicador ───────────────────────────────────────────────
+  // ── DEFUNCIONES ───────────────────────────────────────────────────────────
+  const defMes=DB.def.filter(r=>r.fecha>=inicioMes&&r.fecha<=finMes);
+  const pctMort=todos.length>0?Math.round(defMes.length/todos.length*1000)/10:0;
+
+  // ── NAS POR SERVICIO ──────────────────────────────────────────────────────
+  function nasDistrib(arr){
+    const c={Básico:0,Moderado:0,'Alta complejidad':0,Crítico:0};
+    arr.forEach(r=>{ const n=inferirNAS(r); if(c[n.nivel]!==undefined) c[n.nivel]++; }); return c;
+  }
+  const nasH=nasDistrib(hosp), nasU=nasDistrib(uci);
+
+  // ── ENFERMERAS NECESARIAS (por turno) ─────────────────────────────────────
+  // Minutos disponibles por turno de 8h = 480 min
+  // Cada enfermera cubre 480 min de cuidados. Sumamos min NAS de todos los pacientes activos del mes
+  // y calculamos cuántas enfermeras hacen falta.
+  // Usamos promedio de pacientes activos = pdTodos / diasMes como censo promedio
+  function enfNecesarias(nasCount, pd, diasM){
+    const promPac=diasM>0?pd/diasM:0;
+    // Distribuir proporcionalmente
+    const total=Object.values(nasCount).reduce((s,v)=>s+v,0)||1;
+    const minsTotales=NAS_NIVELES.reduce((s,nv)=>s+(nasCount[nv]||0)/total*NAS_MINS[nv]*promPac,0);
+    return Math.ceil(minsTotales/480*10)/10; // enfermeras necesarias
+  }
+  const enfH=enfNecesarias(nasH,pdHosp,diasMes);
+  const enfU=enfNecesarias(nasU,pdUCI,diasMes);
+  const ENF_ACTUALES_H=4, ENF_ACTUALES_U=4;
+
+  // ── DEVICES POR SERVICIO ──────────────────────────────────────────────────
+  function dispositivos(arr){
+    return {
+      foley:arr.filter(r=>r.sondaFoley==='Sí').length,
+      sng:arr.filter(r=>r.sng==='Sí').length,
+      dren:arr.filter(r=>r.drenaje1||r.drenaje2).length,
+      altoF:arr.filter(r=>r.altoFlujo==='Sí').length,
+      iv2:arr.filter(r=>r.accesoIV2).length,
+      vm:arr.filter(r=>r.ventMec==='Sí').length,
+      transfusion:arr.filter(r=>r.transfusion&&r.transfusion!=='No'&&r.transfusion!=='').length,
+    };
+  }
+  const dispH=dispositivos(hosp), dispU=dispositivos(uci);
+  const nTransf=dispH.transfusion+dispU.transfusion;
+  const nVM=dispH.vm+dispU.vm;
+
+  // ── DIETS, MEDS, ISOLATION ────────────────────────────────────────────────
+  const dietaCount={}, medCount={}, aislaCount={};
+  todos.forEach(r=>{
+    if(r.dieta) dietaCount[r.dieta]=(dietaCount[r.dieta]||0)+1;
+    [r.med1,r.med2,r.med3].filter(Boolean).forEach(m=>{ medCount[m]=(medCount[m]||0)+1; });
+    if(r.aislamiento) aislaCount[r.aislamiento]=(aislaCount[r.aislamiento]||0)+1;
+  });
+  const glasgowGrupos={'15 (Normal)':0,'13-14 (Leve)':0,'9-12 (Moderado)':0,'≤8 (Grave)':0};
+  todos.forEach(r=>{ const g=parseInt(r.glasgow)||0; if(g===15) glasgowGrupos['15 (Normal)']++; else if(g>=13) glasgowGrupos['13-14 (Leve)']++; else if(g>=9) glasgowGrupos['9-12 (Moderado)']++; else if(g>0) glasgowGrupos['≤8 (Grave)']++; });
+
+  // ── HELPER TARJETA INDICADOR ──────────────────────────────────────────────
   function ic(color,titulo,formula,valor,desc,barPct){
     return `<div class="ind-card">
       <div class="ind-hdr"><div class="ind-dot" style="background:${color}"></div><span class="ind-ttl">${titulo}</span></div>
@@ -505,6 +559,19 @@ function renderConcentrado(){
       <div class="ind-bar"><div class="ind-fill" style="width:${Math.min(barPct||0,100)}%;background:${color}"></div></div>
     </div>`;
   }
+  // helper fila dispositivo con barra
+  function dispRow(lbl,nH,nU,color){
+    const tot=nH+nU, base=Math.max(todos.length,1);
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--gris1)">
+      <span style="font-size:12px;color:var(--gris6)">${lbl}</span>
+      <div style="display:flex;align-items:center;gap:6px">
+        <div style="height:4px;width:${Math.round(tot/base*80)}px;max-width:80px;background:${color};border-radius:2px"></div>
+        <span style="font-size:11px;color:var(--gris4)">H:${nH}</span>
+        <span style="font-size:11px;color:var(--rojo)">UCI:${nU}</span>
+        <span style="font-size:12px;font-weight:600;color:${color};min-width:18px;text-align:right">${tot}</span>
+      </div>
+    </div>`;
+  }
 
   document.getElementById('concentrado-body').innerHTML=`
     <div style="font-size:16px;font-weight:600;color:var(--gris7);margin-bottom:14px">
@@ -512,153 +579,241 @@ function renderConcentrado(){
       <span style="font-size:12px;font-weight:400;color:var(--gris4)">${diasMes} días · ${todos.length} pacientes · ${totalEgresos} egresos</span>
     </div>
 
-    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
-      <div class="stat-card"><div class="stat-lbl">Pacientes (Hosp)</div><div class="stat-val" style="color:var(--az)">${hosp.length}</div><div class="stat-sub">${pdHosp} pacientes-día</div></div>
-      <div class="stat-card"><div class="stat-lbl">Pacientes (UCI/UCIM)</div><div class="stat-val" style="color:var(--rojo)">${uci.length}</div><div class="stat-sub">${pdUCI} pacientes-día</div></div>
-      <div class="stat-card"><div class="stat-lbl">Egresos del mes</div><div class="stat-val" style="color:var(--verde)">${totalEgresos}</div><div class="stat-sub">Hosp: ${egresosHosp.length} · UCI: ${egresosUCI.length}</div></div>
-      <div class="stat-card"><div class="stat-lbl">Defunciones</div><div class="stat-val" style="color:var(--gris6)">${defuncionesMes}</div><div class="stat-sub">Mortalidad: ${pctMort}%</div></div>
+    <!-- RESUMEN GENERAL -->
+    <div class="stats-grid" style="grid-template-columns:repeat(6,1fr);margin-bottom:14px">
+      <div class="stat-card"><div class="stat-lbl">Ingresos Hosp</div><div class="stat-val" style="color:var(--az)">${ingresosHosp.length}</div><div class="stat-sub">${pdHosp} pac-día</div></div>
+      <div class="stat-card"><div class="stat-lbl">Egresos Hosp</div><div class="stat-val" style="color:var(--verde)">${egresosHosp.length}</div><div class="stat-sub">Diferencia: ${ingresosHosp.length-egresosHosp.length>=0?'+':''}${ingresosHosp.length-egresosHosp.length}</div></div>
+      <div class="stat-card"><div class="stat-lbl">Ingresos UCI</div><div class="stat-val" style="color:var(--rojo)">${ingresosUCI.length}</div><div class="stat-sub">${pdUCI} pac-día</div></div>
+      <div class="stat-card"><div class="stat-lbl">Egresos UCI</div><div class="stat-val" style="color:var(--naranja)">${egresosUCI.length}</div><div class="stat-sub">Diferencia: ${ingresosUCI.length-egresosUCI.length>=0?'+':''}${ingresosUCI.length-egresosUCI.length}</div></div>
+      <div class="stat-card"><div class="stat-lbl">Defunciones</div><div class="stat-val" style="color:var(--gris6)">${defMes.length}</div><div class="stat-sub">Mortalidad: ${pctMort}%</div></div>
+      <div class="stat-card"><div class="stat-lbl">Infecciones</div><div class="stat-val" style="color:var(--morado)">${infTodos.length}</div><div class="stat-sub">H:${infHosp.length} · UCI:${infUCI.length}</div></div>
     </div>
 
-    <div class="ind-grid-3" style="margin-bottom:12px">
-      <div class="group-title">📊 Indicadores de Rendimiento Hospitalario</div>
-      ${ic('var(--az)','Ocupación Hospitalaria (Piso)','(pacientes-día ÷ camas×días) × 100',ocupHosp!==null?ocupHosp+'%':'—',`${pdHosp} pac-día ÷ (${CAMAS_HOSP} camas × ${diasMes} días). Meta: 80–85%`,ocupHosp)}
-      ${ic('var(--rojo)','Ocupación UCI / UCIM','(pacientes-día ÷ camas×días) × 100',ocupUCI!==null?ocupUCI+'%':'—',`${pdUCI} pac-día ÷ (${CAMAS_UCI+CAMAS_UCIM} camas × ${diasMes} días). Meta: 70–80%`,ocupUCI)}
-      ${ic('var(--verde)','Estancia Promedio','Σ días estancia egresos ÷ total egresos',estanciaPromedio!==null?estanciaPromedio+' días':'—',`${sumaEstancia} días totales ÷ ${totalEgresos} egresos`,estanciaPromedio!==null?Math.min(estanciaPromedio/10*100,100):0)}
-    </div>
-
-    <div class="ind-grid-3" style="margin-bottom:12px">
-      <div class="group-title">🔄 Eficiencia de Camas</div>
-      ${ic('var(--az2)','Índice de Rotación de Camas','egresos piso ÷ 18 camas censables',rotacion+' veces',`${egresosHosp.length} egresos ÷ ${CAMAS_HOSP} camas. Meta: ≥ 3 veces/mes`,Math.min(rotacion/5*100,100))}
-      ${ic('var(--cyan)','Intervalo de Sustitución','horas entre egreso e ingreso siguiente — misma habitación',intervaloSust!==null?intervaloSust+' h':'— (sin datos)',intervaloSust!==null?`Promedio calculado sobre parejas egreso-ingreso en misma habitación. Meta: < 4 h`:'Requiere horaEgreso y horaIngreso registradas en registros consecutivos de la misma habitación',intervaloSust!==null?Math.min(intervaloSust/8*100,100):0)}
-      ${ic('var(--morado)','Reingresos a 30 días','(reingresos ≤30 días ÷ egresos) × 100',pctReingresos!==null?pctReingresos+'%':'—',`${nReingresos} pacientes reingresaron en ≤ 30 días de ${totalEgresos} egresos`,Math.min(pctReingresos||0,100))}
-    </div>
-
-    <div class="ind-grid-3" style="margin-bottom:12px">
-      <div class="group-title">⚠ Seguridad del Paciente</div>
-      ${ic('var(--naranja2)','Tasa de Caídas','(caídas ÷ pacientes-día) × 1000',tasaCaidas!==null?tasaCaidas+' / 1000 pac-día':'—',`${nCaidas} caída${nCaidas!==1?'s':''} en ${pdTodos} pacientes-día. Meta: < 1 por 1000 pac-día`,Math.min(tasaCaidas||0,100))}
-      ${ic('var(--rojo)','Tasa de LPP Adquiridas','(LPP registradas ÷ pacientes hospitalizados) × 100',tasaLPP!==null?tasaLPP+'%':'—',`${nLPP} LPP en ${todos.length} pacientes. Meta: < 2%`,Math.min(tasaLPP||0,100))}
-      ${ic('var(--gris5)','Mortalidad Hospitalaria','(defunciones ÷ pacientes) × 100',pctMort+'%',`${defuncionesMes} defunciones de ${todos.length} pacientes del mes`,Math.min(pctMort*5,100))}
-    </div>
-
-    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
-      <div class="stat-card"><div class="stat-lbl">Ventilación mecánica</div><div class="stat-val" style="color:var(--rojo)">${nVM}</div><div class="stat-sub">${todos.length>0?Math.round(nVM/todos.length*100):0}% de pacientes</div></div>
-      <div class="stat-card"><div class="stat-lbl">Transfusiones</div><div class="stat-val" style="color:var(--morado)">${nTransf}</div><div class="stat-sub">${todos.length>0?Math.round(nTransf/todos.length*100):0}% de pacientes</div></div>
-      <div class="stat-card"><div class="stat-lbl">Caídas registradas</div><div class="stat-val" style="color:var(--naranja2)">${nCaidas}</div><div class="stat-sub">Tasa: ${tasaCaidas!==null?tasaCaidas+'/1000 pd':'—'}</div></div>
-      <div class="stat-card"><div class="stat-lbl">LPP registradas</div><div class="stat-val" style="color:var(--rojo)">${nLPP}</div><div class="stat-sub">Tasa: ${tasaLPP!==null?tasaLPP+'%':'—'}</div></div>
-    </div>
-
-    ${(()=>{
-      // ── NAS DISTRIBUTION ──────────────────────────────────────────────────
-      const nasCounts = {Básico:0,'Moderado':0,'Alta complejidad':0,'Crítico':0};
-      todos.forEach(r=>{ const n=inferirNAS(r); if(nasCounts[n.nivel]!==undefined) nasCounts[n.nivel]++; });
-      const nasColors = {'Básico':'var(--verde)','Moderado':'var(--amarillo)','Alta complejidad':'var(--naranja)','Crítico':'var(--rojo)'};
-      const nasBgs   = {'Básico':'var(--verde3)','Moderado':'var(--amarillo3)','Alta complejidad':'var(--naranja3)','Crítico':'var(--rojo3)'};
-
-      // ── DEVICES ───────────────────────────────────────────────────────────
-      const nFoley  = todos.filter(r=>r.sondaFoley==='Sí').length;
-      const nSNG    = todos.filter(r=>r.sng==='Sí').length;
-      const nDren   = todos.filter(r=>r.drenaje1||r.drenaje2).length;
-      const nAltoF  = todos.filter(r=>r.altoFlujo==='Sí').length;
-      const nIV2    = todos.filter(r=>r.accesoIV2).length;
-
-      // ── DIETS ─────────────────────────────────────────────────────────────
-      const dietaCount={};
-      todos.forEach(r=>{ if(r.dieta){ dietaCount[r.dieta]=(dietaCount[r.dieta]||0)+1; } });
-      const dietaRows=Object.entries(dietaCount).sort((a,b)=>b[1]-a[1]).map(([d,n])=>
-        `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--gris1)">
-          <span style="font-size:12px;color:var(--gris6)">${d}</span>
-          <span style="font-size:12px;font-weight:600;color:var(--az2)">${n}</span>
-        </div>`).join('');
-
-      // ── ISOLATION ─────────────────────────────────────────────────────────
-      const aislaCount={};
-      todos.forEach(r=>{ if(r.aislamiento){ aislaCount[r.aislamiento]=(aislaCount[r.aislamiento]||0)+1; } });
-      const aislaRows=Object.entries(aislaCount).sort((a,b)=>b[1]-a[1]).map(([a,n])=>
-        `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--gris1)">
-          <span style="font-size:12px;color:var(--gris6)">${a}</span>
-          <span style="font-size:12px;font-weight:600;color:var(--morado)">${n}</span>
-        </div>`).join('');
-
-      // ── GLASGOW distribution ───────────────────────────────────────────────
-      const glasgowGrupos = {'15 (Normal)':0,'13-14 (Leve)':0,'9-12 (Moderado)':0,'≤8 (Grave)':0};
-      todos.forEach(r=>{ const g=parseInt(r.glasgow)||0; if(g===15) glasgowGrupos['15 (Normal)']++; else if(g>=13) glasgowGrupos['13-14 (Leve)']++; else if(g>=9) glasgowGrupos['9-12 (Moderado)']++; else if(g>0) glasgowGrupos['≤8 (Grave)']++; });
-
-      // ── AR MEDICATIONS ────────────────────────────────────────────────────
-      const medCount={};
-      todos.forEach(r=>{ [r.med1,r.med2,r.med3].filter(Boolean).forEach(m=>{ medCount[m]=(medCount[m]||0)+1; }); });
-      const medRows=Object.entries(medCount).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([m,n])=>
-        `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--gris1)">
-          <span style="font-size:12px;color:var(--gris6)">${m}</span>
-          <span style="font-size:12px;font-weight:600;color:var(--naranja)">${n}</span>
-        </div>`).join('');
-
-      return `
-      <div class="ind-grid-2" style="margin-bottom:12px;margin-top:12px">
-        <div class="group-title">🧠 Escala NAS — Distribución del mes</div>
-
-        <div class="ind-card" style="grid-column:1/-1">
-          <div class="ind-hdr"><div class="ind-dot" style="background:var(--az)"></div><span class="ind-ttl">Clasificación NAS de pacientes</span></div>
-          <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px">
-            ${Object.entries(nasCounts).map(([nivel,n])=>`
-              <div style="flex:1;min-width:110px;background:${nasBgs[nivel]};border-radius:8px;padding:10px 12px;text-align:center">
-                <div style="font-size:10px;color:${nasColors[nivel]};font-weight:700;margin-bottom:4px">${nivel}</div>
-                <div style="font-size:24px;font-weight:700;color:${nasColors[nivel]}">${n}</div>
-                <div style="font-size:9px;color:${nasColors[nivel]}">${todos.length>0?Math.round(n/todos.length*100):0}%</div>
-              </div>`).join('')}
+    <!-- COMPARATIVA INGRESOS VS EGRESOS -->
+    <div class="ind-grid-2" style="margin-bottom:12px">
+      <div class="group-title">📈 Comparativa Ingresos / Egresos del mes</div>
+      <div class="ind-card">
+        <div class="ind-hdr"><div class="ind-dot" style="background:var(--az)"></div><span class="ind-ttl">Hospitalización — Ingresos vs Egresos</span></div>
+        <div style="display:flex;gap:16px;margin-top:8px;align-items:flex-end">
+          <div style="flex:1;text-align:center">
+            <div style="font-size:10px;font-weight:700;color:var(--az);margin-bottom:4px">INGRESOS</div>
+            <div style="font-size:32px;font-weight:700;color:var(--az)">${ingresosHosp.length}</div>
+            <div style="height:6px;background:var(--az);border-radius:3px;margin-top:6px;width:${ingresosHosp.length+egresosHosp.length>0?Math.round(ingresosHosp.length/(ingresosHosp.length+egresosHosp.length)*100):50}%"></div>
           </div>
-          <div style="margin-top:10px;font-size:10px;color:var(--gris4)">
-            Básico &lt;80 min · Moderado 80-150 min · Alta complejidad 150-240 min · Crítico &gt;240 min cuidados de enfermería estimados
+          <div style="font-size:20px;color:var(--gris4);padding-bottom:14px">↔</div>
+          <div style="flex:1;text-align:center">
+            <div style="font-size:10px;font-weight:700;color:var(--verde);margin-bottom:4px">EGRESOS</div>
+            <div style="font-size:32px;font-weight:700;color:var(--verde)">${egresosHosp.length}</div>
+            <div style="height:6px;background:var(--verde);border-radius:3px;margin-top:6px;width:${ingresosHosp.length+egresosHosp.length>0?Math.round(egresosHosp.length/(ingresosHosp.length+egresosHosp.length)*100):50}%"></div>
           </div>
         </div>
-
-        <div class="ind-card">
-          <div class="ind-hdr"><div class="ind-dot" style="background:var(--az2)"></div><span class="ind-ttl">Dispositivos invasivos activos</span></div>
-          ${[['Sonda Foley',nFoley,'var(--az)'],['SNG',nSNG,'var(--verde)'],['Drenajes',nDren,'var(--naranja)'],['Alto flujo',nAltoF,'var(--cyan)'],['Acceso IV 2',nIV2,'var(--morado)'],['Ventilación mecánica',nVM,'var(--rojo)']].map(([lbl,n,color])=>`
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--gris1)">
-              <span style="font-size:12px;color:var(--gris6)">${lbl}</span>
-              <div style="display:flex;align-items:center;gap:8px">
-                <div style="height:4px;width:${todos.length>0?Math.round(n/todos.length*80):0}px;max-width:80px;background:${color};border-radius:2px"></div>
-                <span style="font-size:12px;font-weight:600;color:${color};min-width:20px;text-align:right">${n}</span>
-              </div>
-            </div>`).join('')}
-        </div>
-
-        <div class="ind-card">
-          <div class="ind-hdr"><div class="ind-dot" style="background:var(--verde)"></div><span class="ind-ttl">Glasgow — Distribución</span></div>
-          ${Object.entries(glasgowGrupos).map(([g,n],i)=>{
-            const colors=['var(--verde)','var(--amarillo)','var(--naranja)','var(--rojo)'];
-            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--gris1)">
-              <span style="font-size:12px;color:var(--gris6)">${g}</span>
-              <div style="display:flex;align-items:center;gap:8px">
-                <div style="height:4px;width:${todos.length>0?Math.round(n/todos.length*80):0}px;max-width:80px;background:${colors[i]};border-radius:2px"></div>
-                <span style="font-size:12px;font-weight:600;color:${colors[i]};min-width:20px;text-align:right">${n}</span>
-              </div>
-            </div>`;
-          }).join('')}
-          <div style="margin-top:6px;font-size:10px;color:var(--gris4)">${todos.filter(r=>parseInt(r.glasgow)>0).length} pacientes con Glasgow registrado</div>
+        <div style="margin-top:10px;padding:8px;background:${ingresosHosp.length>=egresosHosp.length?'var(--az3)':'var(--verde3)'};border-radius:7px;font-size:12px;color:${ingresosHosp.length>=egresosHosp.length?'var(--az2)':'var(--verde)'};font-weight:600;text-align:center">
+          ${ingresosHosp.length===egresosHosp.length?'Equilibrio perfecto':ingresosHosp.length>egresosHosp.length?`+${ingresosHosp.length-egresosHosp.length} más ingresos que egresos`:`+${egresosHosp.length-ingresosHosp.length} más egresos que ingresos`}
         </div>
       </div>
-
-      <div class="ind-grid-3" style="margin-bottom:12px">
-        <div class="group-title">🍽 Dietas · 💊 Medicamentos AR · 🏥 Aislamientos</div>
-
-        <div class="ind-card">
-          <div class="ind-hdr"><div class="ind-dot" style="background:var(--verde)"></div><span class="ind-ttl">Dietas prescritas</span></div>
-          ${dietaRows||'<div style="font-size:12px;color:var(--gris4);padding:8px 0">Sin registros</div>'}
+      <div class="ind-card">
+        <div class="ind-hdr"><div class="ind-dot" style="background:var(--rojo)"></div><span class="ind-ttl">UCI / UCIM — Ingresos vs Egresos</span></div>
+        <div style="display:flex;gap:16px;margin-top:8px;align-items:flex-end">
+          <div style="flex:1;text-align:center">
+            <div style="font-size:10px;font-weight:700;color:var(--rojo);margin-bottom:4px">INGRESOS</div>
+            <div style="font-size:32px;font-weight:700;color:var(--rojo)">${ingresosUCI.length}</div>
+            <div style="height:6px;background:var(--rojo);border-radius:3px;margin-top:6px;width:${ingresosUCI.length+egresosUCI.length>0?Math.round(ingresosUCI.length/(ingresosUCI.length+egresosUCI.length)*100):50}%"></div>
+          </div>
+          <div style="font-size:20px;color:var(--gris4);padding-bottom:14px">↔</div>
+          <div style="flex:1;text-align:center">
+            <div style="font-size:10px;font-weight:700;color:var(--naranja);margin-bottom:4px">EGRESOS</div>
+            <div style="font-size:32px;font-weight:700;color:var(--naranja)">${egresosUCI.length}</div>
+            <div style="height:6px;background:var(--naranja);border-radius:3px;margin-top:6px;width:${ingresosUCI.length+egresosUCI.length>0?Math.round(egresosUCI.length/(ingresosUCI.length+egresosUCI.length)*100):50}%"></div>
+          </div>
         </div>
-
-        <div class="ind-card">
-          <div class="ind-hdr"><div class="ind-dot" style="background:var(--naranja)"></div><span class="ind-ttl">Medicamentos de alto riesgo</span></div>
-          ${medRows||'<div style="font-size:12px;color:var(--gris4);padding:8px 0">Sin registros</div>'}
-          ${nTransf>0?`<div style="margin-top:8px;padding:6px 8px;background:var(--morado3);border-radius:6px;font-size:11px;color:var(--morado)">🩸 ${nTransf} transfusión${nTransf!==1?'es':''} registrada${nTransf!==1?'s':''}</div>`:''}
+        <div style="margin-top:10px;padding:8px;background:${ingresosUCI.length>=egresosUCI.length?'var(--rojo3)':'var(--naranja3)'};border-radius:7px;font-size:12px;color:${ingresosUCI.length>=egresosUCI.length?'var(--rojo)':'var(--naranja)'};font-weight:600;text-align:center">
+          ${ingresosUCI.length===egresosUCI.length?'Equilibrio perfecto':ingresosUCI.length>egresosUCI.length?`+${ingresosUCI.length-egresosUCI.length} más ingresos que egresos`:`+${egresosUCI.length-ingresosUCI.length} más egresos que ingresos`}
         </div>
+      </div>
+    </div>
 
-        <div class="ind-card">
-          <div class="ind-hdr"><div class="ind-dot" style="background:var(--morado)"></div><span class="ind-ttl">Tipos de aislamiento</span></div>
-          ${aislaRows||'<div style="font-size:12px;color:var(--gris4);padding:8px 0">Sin aislamientos registrados</div>'}
+    <!-- INDICADORES RENDIMIENTO -->
+    <div class="ind-grid-3" style="margin-bottom:12px">
+      <div class="group-title">📊 Indicadores de Rendimiento Hospitalario</div>
+      ${ic('var(--az)','Ocupación Hospitalaria (Piso)','(pac-día ÷ camas×días) × 100',ocupHosp!==null?ocupHosp+'%':'—',`${pdHosp} pac-día ÷ (${CAMAS_HOSP}×${diasMes}). Meta: 80–85%`,ocupHosp)}
+      ${ic('var(--rojo)','Ocupación UCI / UCIM','(pac-día ÷ camas×días) × 100',ocupUCI!==null?ocupUCI+'%':'—',`${pdUCI} pac-día ÷ (${CAMAS_UCI+CAMAS_UCIM}×${diasMes}). Meta: 70–80%`,ocupUCI)}
+      ${ic('var(--verde)','Estancia Promedio','Σ días egresados ÷ total egresos',estanciaPromedio!==null?estanciaPromedio+' días':'—',`${sumaEstancia} días ÷ ${totalEgresos} egresos`,estanciaPromedio?Math.min(estanciaPromedio/10*100,100):0)}
+      ${ic('var(--az2)','Índice de Rotación (Piso)','egresos piso ÷ 18 camas',rotacion+' veces',`${egresosHosp.length} egresos ÷ ${CAMAS_HOSP} camas. Meta ≥3/mes`,Math.min(rotacion/5*100,100))}
+      ${ic('var(--cyan)','Intervalo de Sustitución','horas entre egreso e ingreso — misma hab.',intervaloSust!==null?intervaloSust+' h':'— sin datos',intervaloSust!==null?`Promedio de parejas egreso-ingreso consecutivos. Meta <4h`:'Requiere horaEgreso y horaIngreso registradas.',intervaloSust?Math.min(intervaloSust/8*100,100):0)}
+      ${ic('var(--morado)','Reingresos a 30 días','(reingresos ÷ egresos) × 100',pctReingresos!==null?pctReingresos+'%':'—',`${nReingresos} reingresaron en ≤30 días de ${totalEgresos} egresos`,Math.min(pctReingresos||0,100))}
+    </div>
+
+    <!-- SEGURIDAD -->
+    <div class="ind-grid-3" style="margin-bottom:12px">
+      <div class="group-title">⚠ Seguridad del Paciente</div>
+      ${ic('var(--naranja2)','Tasa de Caídas','(caídas ÷ pacientes-día) × 1000',tasaCaidas!==null?tasaCaidas+' / 1000 pac-día':'—',`${nCaidas} caída${nCaidas!==1?'s':''} (H:${nCaidasH} UCI:${nCaidasU}) en ${pdTodos} pac-día. Meta <1`,Math.min(tasaCaidas||0,100))}
+      ${ic('var(--rojo)','Tasa de LPP','(LPP ÷ pacientes) × 100',tasaLPP!==null?tasaLPP+'%':'—',`${nLPP} LPP en ${todos.length} pacientes. Meta <2%`,Math.min(tasaLPP||0,100))}
+      ${ic('var(--gris5)','Mortalidad','(defunciones ÷ pacientes) × 100',pctMort+'%',`${defMes.length} defunciones de ${todos.length} pacientes`,Math.min(pctMort*5,100))}
+    </div>
+
+    <!-- INFECCIONES -->
+    <div class="ind-grid-2" style="margin-bottom:12px">
+      <div class="group-title">🦠 Infecciones Asociadas a la Atención</div>
+      <div class="ind-card">
+        <div class="ind-hdr"><div class="ind-dot" style="background:var(--morado)"></div><span class="ind-ttl">Total infecciones detectadas — ${MESES_NOM[mes]}</span></div>
+        <div style="display:flex;gap:16px;margin:8px 0 12px">
+          <div style="flex:1;text-align:center;background:var(--az3);border-radius:8px;padding:10px">
+            <div style="font-size:10px;font-weight:700;color:var(--az2)">HOSPITALIZACIÓN</div>
+            <div style="font-size:28px;font-weight:700;color:var(--az2)">${infHosp.length}</div>
+          </div>
+          <div style="flex:1;text-align:center;background:var(--rojo3);border-radius:8px;padding:10px">
+            <div style="font-size:10px;font-weight:700;color:var(--rojo)">UCI / UCIM</div>
+            <div style="font-size:28px;font-weight:700;color:var(--rojo)">${infUCI.length}</div>
+          </div>
+          <div style="flex:1;text-align:center;background:var(--morado3);border-radius:8px;padding:10px">
+            <div style="font-size:10px;font-weight:700;color:var(--morado)">TOTAL</div>
+            <div style="font-size:28px;font-weight:700;color:var(--morado)">${infTodos.length}</div>
+          </div>
         </div>
-      </div>`;
-    })()}`;
+        <div style="font-size:10px;color:var(--gris4)">Tasa: ${todos.length>0?Math.round(infTodos.length/todos.length*1000)/10:0}% del total de pacientes del mes</div>
+      </div>
+      <div class="ind-card">
+        <div class="ind-hdr"><div class="ind-dot" style="background:var(--morado)"></div><span class="ind-ttl">Tipos de infección detectados</span></div>
+        ${Object.keys(infCount).length?Object.entries(infCount).sort((a,b)=>b[1]-a[1]).map(([tipo,n])=>`
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--gris1)">
+            <span style="font-size:12px;color:var(--gris6)">${tipo}</span>
+            <span style="background:var(--morado3);color:var(--morado);padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700">${n}</span>
+          </div>`).join(''):'<div style="font-size:12px;color:var(--gris4);padding:8px 0">Sin infecciones registradas en el mes</div>'}
+        ${infTodos.length>0?`
+        <div style="margin-top:10px">
+          <div style="font-size:10px;font-weight:700;color:var(--gris5);margin-bottom:6px">PACIENTES AFECTADOS</div>
+          ${infTodos.map(r=>`<div style="font-size:11px;color:var(--gris6);padding:3px 0;border-bottom:1px solid var(--gris1)">
+            <span style="background:${DB.hosp.some(h=>h.id===r.id)?'var(--az3)':'var(--rojo3)'};color:${DB.hosp.some(h=>h.id===r.id)?'var(--az2)':'var(--rojo)'};padding:1px 5px;border-radius:4px;font-size:10px;font-weight:600;margin-right:5px">${DB.hosp.some(h=>h.id===r.id)?'Hosp':'UCI'}</span>
+            ${r.nombre||'—'} · ${r.infeccionTipo||'Sin tipo'}
+          </div>`).join('')}
+        </div>`:''}
+      </div>
+    </div>
+
+    <!-- NAS POR SERVICIO -->
+    <div style="margin-bottom:12px">
+      <div class="group-title" style="display:flex;align-items:center;gap:6px;padding:10px 0 6px;border-bottom:2px solid var(--gris2);margin-bottom:10px;font-size:11px;font-weight:700;color:var(--gris6);text-transform:uppercase;letter-spacing:.06em">🧠 Escala NAS — Hospitalización vs UCI/UCIM + Enfermeras necesarias</div>
+      <div class="ind-grid-2">
+        <!-- NAS HOSP -->
+        <div class="ind-card">
+          <div class="ind-hdr"><div class="ind-dot" style="background:var(--az)"></div><span class="ind-ttl">NAS — Hospitalización (${hosp.length} pac.)</span></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 10px">
+            ${NAS_NIVELES.map(nv=>`<div style="flex:1;min-width:80px;background:${NAS_BGS[nv]};border-radius:7px;padding:7px;text-align:center">
+              <div style="font-size:9px;color:${NAS_COLORS[nv]};font-weight:700">${nv}</div>
+              <div style="font-size:22px;font-weight:700;color:${NAS_COLORS[nv]}">${nasH[nv]}</div>
+              <div style="font-size:9px;color:${NAS_COLORS[nv]}">${hosp.length>0?Math.round(nasH[nv]/hosp.length*100):0}%</div>
+            </div>`).join('')}
+          </div>
+          <div style="background:var(--az3);border-radius:8px;padding:10px;display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div style="font-size:10px;color:var(--az2);font-weight:700">ENFERMERAS NECESARIAS / TURNO</div>
+              <div style="font-size:28px;font-weight:700;color:var(--az2)">${enfH}</div>
+              <div style="font-size:10px;color:var(--az2)">basado en carga NAS promedio</div>
+            </div>
+            <div style="text-align:center">
+              <div style="font-size:10px;color:var(--gris5);font-weight:700">PLANTILLA ACTUAL</div>
+              <div style="font-size:28px;font-weight:700;color:${enfH>ENF_ACTUALES_H?'var(--rojo)':'var(--verde)'}">${ENF_ACTUALES_H}</div>
+              <div style="font-size:11px;font-weight:700;color:${enfH>ENF_ACTUALES_H?'var(--rojo)':'var(--verde)'}">
+                ${enfH>ENF_ACTUALES_H?`⚠ Déficit de ${Math.ceil(enfH-ENF_ACTUALES_H)}`:`✓ Suficiente`}
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- NAS UCI -->
+        <div class="ind-card">
+          <div class="ind-hdr"><div class="ind-dot" style="background:var(--rojo)"></div><span class="ind-ttl">NAS — UCI / UCIM (${uci.length} pac.)</span></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 10px">
+            ${NAS_NIVELES.map(nv=>`<div style="flex:1;min-width:80px;background:${NAS_BGS[nv]};border-radius:7px;padding:7px;text-align:center">
+              <div style="font-size:9px;color:${NAS_COLORS[nv]};font-weight:700">${nv}</div>
+              <div style="font-size:22px;font-weight:700;color:${NAS_COLORS[nv]}">${nasU[nv]}</div>
+              <div style="font-size:9px;color:${NAS_COLORS[nv]}">${uci.length>0?Math.round(nasU[nv]/uci.length*100):0}%</div>
+            </div>`).join('')}
+          </div>
+          <div style="background:var(--rojo3);border-radius:8px;padding:10px;display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div style="font-size:10px;color:var(--rojo);font-weight:700">ENFERMERAS NECESARIAS / TURNO</div>
+              <div style="font-size:28px;font-weight:700;color:var(--rojo)">${enfU}</div>
+              <div style="font-size:10px;color:var(--rojo)">basado en carga NAS promedio</div>
+            </div>
+            <div style="text-align:center">
+              <div style="font-size:10px;color:var(--gris5);font-weight:700">PLANTILLA ACTUAL</div>
+              <div style="font-size:28px;font-weight:700;color:${enfU>ENF_ACTUALES_U?'var(--rojo)':'var(--verde)'}">${ENF_ACTUALES_U}</div>
+              <div style="font-size:11px;font-weight:700;color:${enfU>ENF_ACTUALES_U?'var(--rojo)':'var(--verde)'}">
+                ${enfU>ENF_ACTUALES_U?`⚠ Déficit de ${Math.ceil(enfU-ENF_ACTUALES_U)}`:`✓ Suficiente`}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DISPOSITIVOS POR SERVICIO -->
+    <div class="ind-grid-2" style="margin-bottom:12px">
+      <div class="group-title">🔌 Dispositivos Invasivos — Hospitalización vs UCI/UCIM</div>
+      <div class="ind-card">
+        <div class="ind-hdr"><div class="ind-dot" style="background:var(--az)"></div><span class="ind-ttl">Dispositivos — Hospitalización</span></div>
+        ${[['Sonda Foley',dispH.foley,'var(--az)'],['SNG',dispH.sng,'var(--verde)'],['Drenajes',dispH.dren,'var(--naranja)'],['Alto flujo',dispH.altoF,'var(--cyan)'],['Acceso IV 2',dispH.iv2,'var(--morado)'],['VM',dispH.vm,'var(--rojo)'],['Transfusión',dispH.transfusion,'var(--morado2)']].map(([lbl,n,col])=>`
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--gris1)">
+            <span style="font-size:12px;color:var(--gris6)">${lbl}</span>
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="height:4px;width:${hosp.length>0?Math.round(n/hosp.length*80):0}px;max-width:80px;background:${col};border-radius:2px"></div>
+              <span style="font-size:12px;font-weight:600;color:${col}">${n}</span>
+              <span style="font-size:10px;color:var(--gris4)">${hosp.length>0?Math.round(n/hosp.length*100):0}%</span>
+            </div>
+          </div>`).join('')}
+      </div>
+      <div class="ind-card">
+        <div class="ind-hdr"><div class="ind-dot" style="background:var(--rojo)"></div><span class="ind-ttl">Dispositivos — UCI / UCIM</span></div>
+        ${[['Sonda Foley',dispU.foley,'var(--az)'],['SNG',dispU.sng,'var(--verde)'],['Drenajes',dispU.dren,'var(--naranja)'],['Alto flujo',dispU.altoF,'var(--cyan)'],['Acceso IV 2',dispU.iv2,'var(--morado)'],['VM',dispU.vm,'var(--rojo)'],['Transfusión',dispU.transfusion,'var(--morado2)']].map(([lbl,n,col])=>`
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--gris1)">
+            <span style="font-size:12px;color:var(--gris6)">${lbl}</span>
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="height:4px;width:${uci.length>0?Math.round(n/uci.length*80):0}px;max-width:80px;background:${col};border-radius:2px"></div>
+              <span style="font-size:12px;font-weight:600;color:${col}">${n}</span>
+              <span style="font-size:10px;color:var(--gris4)">${uci.length>0?Math.round(n/uci.length*100):0}%</span>
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>
+
+    <!-- GLASGOW, DIETAS, MEDS, AISLAMIENTOS -->
+    <div class="ind-grid-3" style="margin-bottom:12px">
+      <div class="group-title">🍽 Dietas · 💊 Medicamentos AR · 🏥 Aislamientos · 🧠 Glasgow</div>
+      <div class="ind-card">
+        <div class="ind-hdr"><div class="ind-dot" style="background:var(--verde)"></div><span class="ind-ttl">Dietas prescritas</span></div>
+        ${Object.entries(dietaCount).sort((a,b)=>b[1]-a[1]).map(([d,n])=>`
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--gris1)">
+            <span style="font-size:12px;color:var(--gris6)">${d}</span>
+            <span style="font-size:12px;font-weight:600;color:var(--az2)">${n}</span>
+          </div>`).join('')||'<div style="font-size:12px;color:var(--gris4);padding:8px 0">Sin registros</div>'}
+      </div>
+      <div class="ind-card">
+        <div class="ind-hdr"><div class="ind-dot" style="background:var(--naranja)"></div><span class="ind-ttl">Medicamentos de alto riesgo</span></div>
+        ${Object.entries(medCount).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([m,n])=>`
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--gris1)">
+            <span style="font-size:12px;color:var(--gris6)">${m}</span>
+            <span style="font-size:12px;font-weight:600;color:var(--naranja)">${n}</span>
+          </div>`).join('')||'<div style="font-size:12px;color:var(--gris4);padding:8px 0">Sin registros</div>'}
+        ${nTransf>0?`<div style="margin-top:8px;padding:6px 8px;background:var(--morado3);border-radius:6px;font-size:11px;color:var(--morado)">🩸 ${nTransf} transfusión${nTransf!==1?'es':''} (H:${dispH.transfusion} UCI:${dispU.transfusion})</div>`:''}
+      </div>
+      <div class="ind-card">
+        <div class="ind-hdr"><div class="ind-dot" style="background:var(--morado)"></div><span class="ind-ttl">Aislamientos</span></div>
+        ${Object.entries(aislaCount).sort((a,b)=>b[1]-a[1]).map(([a,n])=>`
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--gris1)">
+            <span style="font-size:12px;color:var(--gris6)">${a}</span>
+            <span style="font-size:12px;font-weight:600;color:var(--morado)">${n}</span>
+          </div>`).join('')||'<div style="font-size:12px;color:var(--gris4);padding:8px 0">Sin aislamientos</div>'}
+        <div class="ind-card" style="margin-top:10px;padding:10px;border:none;box-shadow:none">
+          <div class="ind-hdr"><div class="ind-dot" style="background:var(--verde)"></div><span class="ind-ttl">Glasgow</span></div>
+          ${Object.entries(glasgowGrupos).map(([g,n],i)=>{
+            const cols=['var(--verde)','var(--amarillo)','var(--naranja)','var(--rojo)'];
+            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--gris1)">
+              <span style="font-size:11px;color:var(--gris6)">${g}</span>
+              <span style="font-size:12px;font-weight:600;color:${cols[i]}">${n}</span>
+            </div>`;}).join('')}
+        </div>
+      </div>
+    </div>`;
 }
 
 actualizarFechas();
