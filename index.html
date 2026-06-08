@@ -545,7 +545,120 @@ function renderConcentrado(){
       <div class="stat-card"><div class="stat-lbl">Transfusiones</div><div class="stat-val" style="color:var(--morado)">${nTransf}</div><div class="stat-sub">${todos.length>0?Math.round(nTransf/todos.length*100):0}% de pacientes</div></div>
       <div class="stat-card"><div class="stat-lbl">Caídas registradas</div><div class="stat-val" style="color:var(--naranja2)">${nCaidas}</div><div class="stat-sub">Tasa: ${tasaCaidas!==null?tasaCaidas+'/1000 pd':'—'}</div></div>
       <div class="stat-card"><div class="stat-lbl">LPP registradas</div><div class="stat-val" style="color:var(--rojo)">${nLPP}</div><div class="stat-sub">Tasa: ${tasaLPP!==null?tasaLPP+'%':'—'}</div></div>
-    </div>`;
+    </div>
+
+    ${(()=>{
+      // ── NAS DISTRIBUTION ──────────────────────────────────────────────────
+      const nasCounts = {Básico:0,'Moderado':0,'Alta complejidad':0,'Crítico':0};
+      todos.forEach(r=>{ const n=inferirNAS(r); if(nasCounts[n.nivel]!==undefined) nasCounts[n.nivel]++; });
+      const nasColors = {'Básico':'var(--verde)','Moderado':'var(--amarillo)','Alta complejidad':'var(--naranja)','Crítico':'var(--rojo)'};
+      const nasBgs   = {'Básico':'var(--verde3)','Moderado':'var(--amarillo3)','Alta complejidad':'var(--naranja3)','Crítico':'var(--rojo3)'};
+
+      // ── DEVICES ───────────────────────────────────────────────────────────
+      const nFoley  = todos.filter(r=>r.sondaFoley==='Sí').length;
+      const nSNG    = todos.filter(r=>r.sng==='Sí').length;
+      const nDren   = todos.filter(r=>r.drenaje1||r.drenaje2).length;
+      const nAltoF  = todos.filter(r=>r.altoFlujo==='Sí').length;
+      const nIV2    = todos.filter(r=>r.accesoIV2).length;
+
+      // ── DIETS ─────────────────────────────────────────────────────────────
+      const dietaCount={};
+      todos.forEach(r=>{ if(r.dieta){ dietaCount[r.dieta]=(dietaCount[r.dieta]||0)+1; } });
+      const dietaRows=Object.entries(dietaCount).sort((a,b)=>b[1]-a[1]).map(([d,n])=>
+        `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--gris1)">
+          <span style="font-size:12px;color:var(--gris6)">${d}</span>
+          <span style="font-size:12px;font-weight:600;color:var(--az2)">${n}</span>
+        </div>`).join('');
+
+      // ── ISOLATION ─────────────────────────────────────────────────────────
+      const aislaCount={};
+      todos.forEach(r=>{ if(r.aislamiento){ aislaCount[r.aislamiento]=(aislaCount[r.aislamiento]||0)+1; } });
+      const aislaRows=Object.entries(aislaCount).sort((a,b)=>b[1]-a[1]).map(([a,n])=>
+        `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--gris1)">
+          <span style="font-size:12px;color:var(--gris6)">${a}</span>
+          <span style="font-size:12px;font-weight:600;color:var(--morado)">${n}</span>
+        </div>`).join('');
+
+      // ── GLASGOW distribution ───────────────────────────────────────────────
+      const glasgowGrupos = {'15 (Normal)':0,'13-14 (Leve)':0,'9-12 (Moderado)':0,'≤8 (Grave)':0};
+      todos.forEach(r=>{ const g=parseInt(r.glasgow)||0; if(g===15) glasgowGrupos['15 (Normal)']++; else if(g>=13) glasgowGrupos['13-14 (Leve)']++; else if(g>=9) glasgowGrupos['9-12 (Moderado)']++; else if(g>0) glasgowGrupos['≤8 (Grave)']++; });
+
+      // ── AR MEDICATIONS ────────────────────────────────────────────────────
+      const medCount={};
+      todos.forEach(r=>{ [r.med1,r.med2,r.med3].filter(Boolean).forEach(m=>{ medCount[m]=(medCount[m]||0)+1; }); });
+      const medRows=Object.entries(medCount).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([m,n])=>
+        `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--gris1)">
+          <span style="font-size:12px;color:var(--gris6)">${m}</span>
+          <span style="font-size:12px;font-weight:600;color:var(--naranja)">${n}</span>
+        </div>`).join('');
+
+      return `
+      <div class="ind-grid-2" style="margin-bottom:12px;margin-top:12px">
+        <div class="group-title">🧠 Escala NAS — Distribución del mes</div>
+
+        <div class="ind-card" style="grid-column:1/-1">
+          <div class="ind-hdr"><div class="ind-dot" style="background:var(--az)"></div><span class="ind-ttl">Clasificación NAS de pacientes</span></div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px">
+            ${Object.entries(nasCounts).map(([nivel,n])=>`
+              <div style="flex:1;min-width:110px;background:${nasBgs[nivel]};border-radius:8px;padding:10px 12px;text-align:center">
+                <div style="font-size:10px;color:${nasColors[nivel]};font-weight:700;margin-bottom:4px">${nivel}</div>
+                <div style="font-size:24px;font-weight:700;color:${nasColors[nivel]}">${n}</div>
+                <div style="font-size:9px;color:${nasColors[nivel]}">${todos.length>0?Math.round(n/todos.length*100):0}%</div>
+              </div>`).join('')}
+          </div>
+          <div style="margin-top:10px;font-size:10px;color:var(--gris4)">
+            Básico &lt;80 min · Moderado 80-150 min · Alta complejidad 150-240 min · Crítico &gt;240 min cuidados de enfermería estimados
+          </div>
+        </div>
+
+        <div class="ind-card">
+          <div class="ind-hdr"><div class="ind-dot" style="background:var(--az2)"></div><span class="ind-ttl">Dispositivos invasivos activos</span></div>
+          ${[['Sonda Foley',nFoley,'var(--az)'],['SNG',nSNG,'var(--verde)'],['Drenajes',nDren,'var(--naranja)'],['Alto flujo',nAltoF,'var(--cyan)'],['Acceso IV 2',nIV2,'var(--morado)'],['Ventilación mecánica',nVM,'var(--rojo)']].map(([lbl,n,color])=>`
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--gris1)">
+              <span style="font-size:12px;color:var(--gris6)">${lbl}</span>
+              <div style="display:flex;align-items:center;gap:8px">
+                <div style="height:4px;width:${todos.length>0?Math.round(n/todos.length*80):0}px;max-width:80px;background:${color};border-radius:2px"></div>
+                <span style="font-size:12px;font-weight:600;color:${color};min-width:20px;text-align:right">${n}</span>
+              </div>
+            </div>`).join('')}
+        </div>
+
+        <div class="ind-card">
+          <div class="ind-hdr"><div class="ind-dot" style="background:var(--verde)"></div><span class="ind-ttl">Glasgow — Distribución</span></div>
+          ${Object.entries(glasgowGrupos).map(([g,n],i)=>{
+            const colors=['var(--verde)','var(--amarillo)','var(--naranja)','var(--rojo)'];
+            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--gris1)">
+              <span style="font-size:12px;color:var(--gris6)">${g}</span>
+              <div style="display:flex;align-items:center;gap:8px">
+                <div style="height:4px;width:${todos.length>0?Math.round(n/todos.length*80):0}px;max-width:80px;background:${colors[i]};border-radius:2px"></div>
+                <span style="font-size:12px;font-weight:600;color:${colors[i]};min-width:20px;text-align:right">${n}</span>
+              </div>
+            </div>`;
+          }).join('')}
+          <div style="margin-top:6px;font-size:10px;color:var(--gris4)">${todos.filter(r=>parseInt(r.glasgow)>0).length} pacientes con Glasgow registrado</div>
+        </div>
+      </div>
+
+      <div class="ind-grid-3" style="margin-bottom:12px">
+        <div class="group-title">🍽 Dietas · 💊 Medicamentos AR · 🏥 Aislamientos</div>
+
+        <div class="ind-card">
+          <div class="ind-hdr"><div class="ind-dot" style="background:var(--verde)"></div><span class="ind-ttl">Dietas prescritas</span></div>
+          ${dietaRows||'<div style="font-size:12px;color:var(--gris4);padding:8px 0">Sin registros</div>'}
+        </div>
+
+        <div class="ind-card">
+          <div class="ind-hdr"><div class="ind-dot" style="background:var(--naranja)"></div><span class="ind-ttl">Medicamentos de alto riesgo</span></div>
+          ${medRows||'<div style="font-size:12px;color:var(--gris4);padding:8px 0">Sin registros</div>'}
+          ${nTransf>0?`<div style="margin-top:8px;padding:6px 8px;background:var(--morado3);border-radius:6px;font-size:11px;color:var(--morado)">🩸 ${nTransf} transfusión${nTransf!==1?'es':''} registrada${nTransf!==1?'s':''}</div>`:''}
+        </div>
+
+        <div class="ind-card">
+          <div class="ind-hdr"><div class="ind-dot" style="background:var(--morado)"></div><span class="ind-ttl">Tipos de aislamiento</span></div>
+          ${aislaRows||'<div style="font-size:12px;color:var(--gris4);padding:8px 0">Sin aislamientos registrados</div>'}
+        </div>
+      </div>`;
+    })()}`;
 }
 
 actualizarFechas();
