@@ -742,6 +742,137 @@ function renderConcentrado(){
       </div>
     </div>
 
+    <!-- HISTÓRICO NAS DIARIO -->
+    <div style="margin-bottom:12px">
+      <div class="group-title" style="display:flex;align-items:center;justify-content:space-between;padding:10px 0 6px;border-bottom:2px solid var(--gris2);margin-bottom:10px;font-size:11px;font-weight:700;color:var(--gris6);text-transform:uppercase;letter-spacing:.06em">
+        <span>📅 NAS diario — ${MESES_NOM[mes]} ${anio}</span>
+        <span style="font-size:10px;font-weight:400;color:var(--gris4);text-transform:none">Reconstruido día a día desde los registros guardados</span>
+      </div>
+      ${(()=>{
+        // Para cada día del mes, calcular pacientes activos y su NAS
+        const filas = [];
+        for(let d = 1; d <= diasMes; d++){
+          const fechaDia = `${anio}-${String(mes+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+          // Pacientes activos ese día
+          const hActivos = DB.hosp.filter(r => {
+            const ing = r.fechaIngreso || r.fecha || '';
+            if(!ing || ing > fechaDia) return false;
+            if(r.fechaEgreso && r.fechaEgreso < fechaDia) return false;
+            return true;
+          });
+          const uActivos = DB.uci.filter(r => {
+            const ing = r.fechaIngreso || r.fecha || '';
+            if(!ing || ing > fechaDia) return false;
+            if(r.fechaEgreso && r.fechaEgreso < fechaDia) return false;
+            return true;
+          });
+          // Solo mostrar días con al menos 1 paciente
+          if(hActivos.length === 0 && uActivos.length === 0) continue;
+          // NAS distribución
+          const nhD = {Básico:0,Moderado:0,'Alta complejidad':0,Crítico:0};
+          hActivos.forEach(r=>{ const n=inferirNAS(r); nhD[n.nivel]++; });
+          const nuD = {Básico:0,Moderado:0,'Alta complejidad':0,Crítico:0};
+          uActivos.forEach(r=>{ const n=inferirNAS(r); nuD[n.nivel]++; });
+          // Enfermeras necesarias con ratio
+          const enfH_d = Math.round(NAS_NIVELES.reduce((s,nv)=>s+(nhD[nv]||0)*RATIO_ENF[nv],0)*10)/10;
+          const enfU_d = Math.round(NAS_NIVELES.reduce((s,nv)=>s+(nuD[nv]||0)*RATIO_ENF[nv],0)*10)/10;
+          // Día de la semana
+          const diasSem = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+          const diaSem = diasSem[new Date(fechaDia+'T12:00').getDay()];
+          // Color fila fin de semana
+          const esFDS = new Date(fechaDia+'T12:00').getDay()===0||new Date(fechaDia+'T12:00').getDay()===6;
+          filas.push({fechaDia, d, diaSem, esFDS, hActivos, uActivos, nhD, nuD, enfH_d, enfU_d});
+        }
+        if(!filas.length) return '<div style="font-size:12px;color:var(--gris4);padding:12px">Sin pacientes registrados en este mes.</div>';
+
+        // Calcular máx de pacientes para escalar barras
+        const maxPacH = Math.max(...filas.map(f=>f.hActivos.length), 1);
+        const maxPacU = Math.max(...filas.map(f=>f.uActivos.length), 1);
+
+        return `<div style="overflow-x:auto;border-radius:8px;border:1px solid var(--gris2)">
+          <table style="width:100%;border-collapse:collapse;font-size:11px;min-width:900px">
+            <thead>
+              <tr style="background:var(--gris1)">
+                <th style="padding:8px 10px;text-align:left;font-size:10px;color:var(--gris5);border-bottom:1px solid var(--gris2);white-space:nowrap">Fecha</th>
+                <th style="padding:8px 10px;text-align:center;font-size:10px;color:var(--az2);border-bottom:1px solid var(--gris2)" colspan="5">🛏 Hospitalización</th>
+                <th style="padding:8px 10px;text-align:center;font-size:10px;color:var(--rojo);border-bottom:1px solid var(--gris2)" colspan="5">🫀 UCI / UCIM</th>
+              </tr>
+              <tr style="background:var(--gris0)">
+                <th style="padding:6px 10px;border-bottom:2px solid var(--gris2)"></th>
+                <th style="padding:6px 8px;text-align:center;font-size:10px;color:var(--gris5);border-bottom:2px solid var(--gris2)">Pac.</th>
+                <th style="padding:6px 8px;text-align:center;font-size:10px;color:var(--verde);border-bottom:2px solid var(--gris2)">Básico</th>
+                <th style="padding:6px 8px;text-align:center;font-size:10px;color:var(--amarillo);border-bottom:2px solid var(--gris2)">Moderado</th>
+                <th style="padding:6px 8px;text-align:center;font-size:10px;color:var(--naranja);border-bottom:2px solid var(--gris2)">Alta</th>
+                <th style="padding:6px 8px;text-align:center;font-size:10px;color:var(--rojo);border-bottom:2px solid var(--gris2);border-right:2px solid var(--gris2)">Enf.</th>
+                <th style="padding:6px 8px;text-align:center;font-size:10px;color:var(--gris5);border-bottom:2px solid var(--gris2)">Pac.</th>
+                <th style="padding:6px 8px;text-align:center;font-size:10px;color:var(--verde);border-bottom:2px solid var(--gris2)">Básico</th>
+                <th style="padding:6px 8px;text-align:center;font-size:10px;color:var(--amarillo);border-bottom:2px solid var(--gris2)">Moderado</th>
+                <th style="padding:6px 8px;text-align:center;font-size:10px;color:var(--naranja);border-bottom:2px solid var(--gris2)">Alta</th>
+                <th style="padding:6px 8px;text-align:center;font-size:10px;color:var(--rojo);border-bottom:2px solid var(--gris2)">Enf.</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filas.map(f => {
+                const bgRow = f.esFDS ? 'background:#F8F0FF;' : '';
+                const barH = Math.round(f.hActivos.length / maxPacH * 60);
+                const barU = Math.round(f.uActivos.length / maxPacU * 60);
+                // Color enfermeras vs plantilla
+                const colEnfH = f.enfH_d > ENF_ACTUALES_H ? 'color:var(--rojo);font-weight:700' : 'color:var(--verde);font-weight:700';
+                const colEnfU = f.enfU_d > ENF_ACTUALES_U ? 'color:var(--rojo);font-weight:700' : 'color:var(--verde);font-weight:700';
+                return `<tr style="border-bottom:1px solid var(--gris1);${bgRow}">
+                  <td style="padding:6px 10px;white-space:nowrap">
+                    <span style="font-weight:600;color:var(--gris7)">${f.d}</span>
+                    <span style="color:var(--gris4);margin-left:4px">${f.diaSem}</span>
+                  </td>
+                  <td style="padding:6px 8px;text-align:center">
+                    <div style="display:flex;align-items:center;justify-content:center;gap:4px">
+                      <div style="height:6px;width:${barH}px;background:var(--az2);border-radius:3px;min-width:2px"></div>
+                      <span style="font-weight:600;color:var(--az2)">${f.hActivos.length}</span>
+                    </div>
+                  </td>
+                  <td style="padding:6px 8px;text-align:center;color:var(--verde)">${f.nhD['Básico']||'—'}</td>
+                  <td style="padding:6px 8px;text-align:center;color:var(--amarillo)">${f.nhD['Moderado']||'—'}</td>
+                  <td style="padding:6px 8px;text-align:center;color:var(--naranja)">${(f.nhD['Alta complejidad']||0)+(f.nhD['Crítico']||0)||'—'}</td>
+                  <td style="padding:6px 8px;text-align:center;border-right:2px solid var(--gris2);${colEnfH}">${f.enfH_d}</td>
+                  <td style="padding:6px 8px;text-align:center">
+                    <div style="display:flex;align-items:center;justify-content:center;gap:4px">
+                      <div style="height:6px;width:${barU}px;background:var(--rojo2);border-radius:3px;min-width:2px"></div>
+                      <span style="font-weight:600;color:var(--rojo)">${f.uActivos.length}</span>
+                    </div>
+                  </td>
+                  <td style="padding:6px 8px;text-align:center;color:var(--verde)">${f.nuD['Básico']||'—'}</td>
+                  <td style="padding:6px 8px;text-align:center;color:var(--amarillo)">${f.nuD['Moderado']||'—'}</td>
+                  <td style="padding:6px 8px;text-align:center;color:var(--naranja)">${(f.nuD['Alta complejidad']||0)+(f.nuD['Crítico']||0)||'—'}</td>
+                  <td style="padding:6px 8px;text-align:center;${colEnfU}">${f.enfU_d}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+            <tfoot>
+              <tr style="background:var(--gris1);border-top:2px solid var(--gris2)">
+                <td style="padding:7px 10px;font-size:10px;font-weight:700;color:var(--gris5)">PROMEDIO MES</td>
+                <td style="padding:7px 8px;text-align:center;font-weight:700;color:var(--az2)">${Math.round(filas.reduce((s,f)=>s+f.hActivos.length,0)/filas.length*10)/10}</td>
+                <td style="padding:7px 8px;text-align:center;font-weight:600;color:var(--verde)">${Math.round(filas.reduce((s,f)=>s+f.nhD['Básico'],0)/filas.length*10)/10}</td>
+                <td style="padding:7px 8px;text-align:center;font-weight:600;color:var(--amarillo)">${Math.round(filas.reduce((s,f)=>s+f.nhD['Moderado'],0)/filas.length*10)/10}</td>
+                <td style="padding:7px 8px;text-align:center;font-weight:600;color:var(--naranja)">${Math.round(filas.reduce((s,f)=>s+(f.nhD['Alta complejidad']||0)+(f.nhD['Crítico']||0),0)/filas.length*10)/10}</td>
+                <td style="padding:7px 8px;text-align:center;font-weight:700;color:var(--az);border-right:2px solid var(--gris2)">${Math.round(filas.reduce((s,f)=>s+f.enfH_d,0)/filas.length*10)/10}</td>
+                <td style="padding:7px 8px;text-align:center;font-weight:700;color:var(--rojo)">${Math.round(filas.reduce((s,f)=>s+f.uActivos.length,0)/filas.length*10)/10}</td>
+                <td style="padding:7px 8px;text-align:center;font-weight:600;color:var(--verde)">${Math.round(filas.reduce((s,f)=>s+f.nuD['Básico'],0)/filas.length*10)/10}</td>
+                <td style="padding:7px 8px;text-align:center;font-weight:600;color:var(--amarillo)">${Math.round(filas.reduce((s,f)=>s+f.nuD['Moderado'],0)/filas.length*10)/10}</td>
+                <td style="padding:7px 8px;text-align:center;font-weight:600;color:var(--naranja)">${Math.round(filas.reduce((s,f)=>s+(f.nuD['Alta complejidad']||0)+(f.nuD['Crítico']||0),0)/filas.length*10)/10}</td>
+                <td style="padding:7px 8px;text-align:center;font-weight:700;color:var(--rojo)">${Math.round(filas.reduce((s,f)=>s+f.enfU_d,0)/filas.length*10)/10}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <div style="font-size:10px;color:var(--gris4);margin-top:6px;display:flex;gap:16px;flex-wrap:wrap">
+          <span>Enf. en <span style="color:var(--verde);font-weight:700">verde</span> = plantilla actual suficiente</span>
+          <span>Enf. en <span style="color:var(--rojo);font-weight:700">rojo</span> = plantilla insuficiente ese día</span>
+          <span>Alta = Alta complejidad + Crítico combinados</span>
+          <span style="background:var(--morado3);color:var(--morado);padding:1px 6px;border-radius:4px">Fin de semana</span>
+        </div>`;
+      })()}
+    </div>
+
     <!-- DISPOSITIVOS -->
     <div class="ind-grid-2" style="margin-bottom:12px">
       <div class="group-title">🔌 Dispositivos Invasivos — Hospitalización vs UCI/UCIM</div>
@@ -783,4 +914,3 @@ cargarDatos();
 </script>
 </body>
 </html>
-
