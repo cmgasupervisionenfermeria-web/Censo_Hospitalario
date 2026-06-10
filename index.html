@@ -195,12 +195,7 @@ style="width:100%;padding:12px;font-size:20px;text-align:center;border:2px solid
 <div class="pac-table-wrap">
 <table>
 <thead><tr>
-<th>Hab.</th><th>Ingreso</th><th>Días</th><th>Nombre</th><th>Exp.</th><th>Sexo</th><th>Edad</th>
-<th>Diagnóstico</th><th>Procedimiento</th><th>Egreso</th><th>Médico</th><th>Glasgow</th>
-<th>Aislamiento</th><th>Monitoreo</th><th>Acceso IV</th><th>Sonda Foley</th><th>SNG</th>
-<th>Drenajes</th><th>Ostomía</th><th>Sop. Resp.</th><th>R.Caída</th><th>R.LPP</th>
-<th>⚠ Caída</th><th>⚠ LPP</th>
-<th>Medicamentos AR</th><th>Transfusión</th><th>Dieta</th><th>NAS</th><th></th>
+<th>Hab.</th><th>Ingreso</th><th>Días</th><th>Nombre</th><th>Exp.</th><th>Diagnóstico</th><th>Médico</th><th>NAS</th><th>⚠</th><th></th>
 </tr></thead>
 <tbody id="hosp-tbody"></tbody>
 </table>
@@ -229,12 +224,7 @@ style="width:100%;padding:12px;font-size:20px;text-align:center;border:2px solid
 <div class="pac-table-wrap">
 <table>
 <thead><tr>
-<th>Sala</th><th>Ingreso</th><th>Días</th><th>Nombre</th><th>Exp.</th><th>Sexo</th><th>Edad</th>
-<th>Diagnóstico</th><th>Procedimiento</th><th>Egreso</th><th>Médico</th><th>Glasgow</th>
-<th>Aislamiento</th><th>Monitoreo</th><th>Acceso IV</th><th>Sonda Foley</th><th>SNG</th>
-<th>Drenajes</th><th>Ostomía</th><th>Sop. Resp.</th><th>Vent. Mec.</th><th>R.Caída</th><th>R.LPP</th>
-<th>⚠ Caída</th><th>⚠ LPP</th>
-<th>Medicamentos AR</th><th>Transfusión</th><th>Dieta</th><th>NAS</th><th></th>
+<th>Sala</th><th>Ingreso</th><th>Días</th><th>Nombre</th><th>Exp.</th><th>Diagnóstico</th><th>Médico</th><th>NAS</th><th>⚠</th><th></th>
 </tr></thead>
 <tbody id="uci-tbody"></tbody>
 </table>
@@ -466,6 +456,8 @@ function panelDetalle(r, seccion){
         <div class="exp-field"><span class="exp-lbl">Aseguradora</span><span class="exp-val">${val(r.aseguradora)}</span></div>
         <div class="exp-field"><span class="exp-lbl">Alergias</span><span class="exp-val ${r.alergias?'alert':''}">${val(r.alergias)}</span></div>
         <div class="exp-field"><span class="exp-lbl">F. procedimiento</span><span class="exp-val">${fmtF(r.fechaProcedimiento)}</span></div>
+        <div class="exp-field"><span class="exp-lbl">Procedimiento</span><span class="exp-val">${val(r.procedimiento)}</span></div>
+        <div class="exp-field"><span class="exp-lbl">Sexo / Edad</span><span class="exp-val">${val(r.sexo)} · ${val(r.edad)} años</span></div>
         <div class="exp-field"><span class="exp-lbl">Egreso</span><span class="exp-val ${r.fechaEgreso?'ok':''}">${r.fechaEgreso?fmtF(r.fechaEgreso)+' '+(r.horaEgreso||''):'Activo'}</span></div>
         <div class="exp-field"><span class="exp-lbl">Observaciones</span><span class="exp-val">${val(r.estadoClin)}</span></div>
       </div>
@@ -513,74 +505,44 @@ function panelDetalle(r, seccion){
   </div>`;
 }
 
-function renderHosp(){ const data=filtrarActivos(DB.hosp); const tbody=document.getElementById('hosp-tbody'); const empty=document.getElementById('hosp-empty'); const hoy=dk(cur); document.getElementById('hosp-count').textContent=data.length+' paciente'+(data.length!==1?'s':'')+' activo'+(data.length!==1?'s':''); if(!data.length){tbody.innerHTML='';empty.style.display='block';return;} empty.style.display='none'; tbody.innerHTML=data.map(r=>{ const egresaHoy=r.fechaEgreso===hoy; const rowStyle=egresaHoy?'background:#F0FDF4;':''; const colCount=29;
-  return `<tr id="row-${r.id}" class="row-expandable${egresaHoy?' ':' '}" style="${rowStyle}" onclick="toggleExpand(${r.id})">
-    <td><b>${r.habitacion||'—'}</b></td>
-    <td style="font-size:11px;white-space:nowrap">${r.fechaIngreso||'—'}<br><span style="color:var(--gris4)">${r.horaIngreso||''}</span></td>
-    <td style="text-align:center;font-weight:600">${diasEstancia(r.fechaIngreso)}</td>
-    <td style="max-width:140px;font-weight:500;color:var(--az2)">${r.nombre||'—'}</td>
-    <td style="font-family:'DM Mono',monospace;font-size:11px">${r.expediente||'—'}</td>
-    <td><span class="badge ${r.sexo==='M'?'b-m':'b-f'}">${r.sexo||'—'}</span></td>
-    <td style="text-align:center">${r.edad||'—'}</td>
-    <td style="max-width:160px;font-size:11px;color:var(--gris5)">${r.diagnostico||'—'}</td>
-    <td style="max-width:140px;font-size:11px;color:var(--gris5)">${r.procedimiento||'—'}</td>
-    <td style="font-size:11px">${egresaHoy?`<span style="color:var(--verde);font-weight:600">✓ ${r.fechaEgreso}</span>`:r.fechaEgreso||'—'}</td>
-    <td style="font-size:11px">${r.medico||'—'}</td>
-    <td style="text-align:center">${r.glasgow||'—'}</td>
-    <td style="font-size:11px">${r.aislamiento||'—'}</td>
-    <td style="font-size:11px">${r.monitoreo||'—'}</td>
-    <td style="font-size:11px">${r.accesoIV||'—'}</td>
-    <td style="text-align:center">${r.sondaFoley==='Sí'?'✓':'—'}</td>
-    <td style="text-align:center">${r.sng==='Sí'?'✓':'—'}</td>
-    <td style="font-size:11px">${r.drenaje1||r.drenaje2||'—'}</td>
-    <td style="font-size:11px">${r.ostomia||'—'}</td>
-    <td style="font-size:11px">${r.dispositivoResp||'—'}</td>
-    <td style="text-align:center">${r.riesgoCaida||'—'}</td>
-    <td style="text-align:center">${r.riesgoLPP||'—'}</td>
-    <td style="text-align:center">${r['caídaEvento']==='Sí'?'<span style="color:var(--rojo);font-weight:700">⚠</span>':'—'}</td>
-    <td style="text-align:center">${r['lppEvento']==='Sí'?`<span style="color:var(--rojo);font-weight:700">⚠</span>`:'—'}</td>
-    <td style="font-size:11px;max-width:100px">${[r.med1,r.med2,r.med3].filter(Boolean).join(', ')||'—'}</td>
-    <td style="font-size:11px">${r.transfusion&&r.transfusion!=='No'?r.transfusion:'—'}</td>
-    <td style="font-size:11px">${r.dieta||'—'}</td>
-    <td>${nasChip(r)}</td>
-    <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();requirePin(()=>abrirModalPaciente(${r.id},'hosp'))">✏</button></td>
-  </tr>
-  <tr id="exp-${r.id}" class="exp-row"><td colspan="${colCount}">${panelDetalle(r,'hosp')}</td></tr>`; }).join(''); }
-
-function renderUCI(){ const data=filtrarActivos(DB.uci); const tbody=document.getElementById('uci-tbody'); const empty=document.getElementById('uci-empty'); const hoy=dk(cur); document.getElementById('uci-count').textContent=data.length+' paciente'+(data.length!==1?'s':'')+' activo'+(data.length!==1?'s':''); if(!data.length){tbody.innerHTML='';empty.style.display='block';return;} empty.style.display='none'; tbody.innerHTML=data.map(r=>{ const egresaHoy=r.fechaEgreso===hoy; const rowStyle=egresaHoy?'background:#F0FDF4;':''; const colCount=30;
+function renderHosp(){ const data=filtrarActivos(DB.hosp); const tbody=document.getElementById('hosp-tbody'); const empty=document.getElementById('hosp-empty'); const hoy=dk(cur); document.getElementById('hosp-count').textContent=data.length+' paciente'+(data.length!==1?'s':'')+' activo'+(data.length!==1?'s':''); if(!data.length){tbody.innerHTML='';empty.style.display='block';return;} empty.style.display='none'; tbody.innerHTML=data.map(r=>{ const egresaHoy=r.fechaEgreso===hoy; const rowStyle=egresaHoy?'background:#F0FDF4;':'';
+  const alertas=[];
+  if(r['caídaEvento']==='Sí') alertas.push('<span style="color:var(--rojo);font-size:10px;font-weight:700">Caída</span>');
+  if(r['lppEvento']==='Sí') alertas.push('<span style="color:var(--rojo);font-size:10px;font-weight:700">LPP</span>');
+  if(r.infeccionEvento==='Sí') alertas.push('<span style="color:var(--rojo);font-size:10px;font-weight:700">Infec.</span>');
   return `<tr id="row-${r.id}" class="row-expandable" style="${rowStyle}" onclick="toggleExpand(${r.id})">
     <td><b>${r.habitacion||'—'}</b></td>
     <td style="font-size:11px;white-space:nowrap">${r.fechaIngreso||'—'}<br><span style="color:var(--gris4)">${r.horaIngreso||''}</span></td>
-    <td style="text-align:center;font-weight:600">${diasEstancia(r.fechaIngreso)}</td>
-    <td style="max-width:140px;font-weight:500;color:var(--az2)">${r.nombre||'—'}</td>
+    <td style="text-align:center;font-weight:600;color:var(--az2)">${diasEstancia(r.fechaIngreso)}</td>
+    <td style="font-weight:600;color:var(--az2)">${r.nombre||'—'}<br><span style="font-size:10px;font-weight:400;color:var(--gris4)">${r.sexo||''} · ${r.edad||''}a</span></td>
     <td style="font-family:'DM Mono',monospace;font-size:11px">${r.expediente||'—'}</td>
-    <td><span class="badge ${r.sexo==='M'?'b-m':'b-f'}">${r.sexo||'—'}</span></td>
-    <td style="text-align:center">${r.edad||'—'}</td>
-    <td style="max-width:160px;font-size:11px;color:var(--gris5)">${r.diagnostico||'—'}</td>
-    <td style="max-width:140px;font-size:11px;color:var(--gris5)">${r.procedimiento||'—'}</td>
-    <td style="font-size:11px">${egresaHoy?`<span style="color:var(--verde);font-weight:600">✓ ${r.fechaEgreso}</span>`:r.fechaEgreso||'—'}</td>
+    <td style="font-size:11px;color:var(--gris5);max-width:180px">${r.diagnostico||'—'}</td>
     <td style="font-size:11px">${r.medico||'—'}</td>
-    <td style="text-align:center">${r.glasgow||'—'}</td>
-    <td style="font-size:11px">${r.aislamiento||'—'}</td>
-    <td style="font-size:11px">${r.monitoreo||'—'}</td>
-    <td style="font-size:11px">${r.accesoIV||'—'}</td>
-    <td style="text-align:center">${r.sondaFoley==='Sí'?'✓':'—'}</td>
-    <td style="text-align:center">${r.sng==='Sí'?'✓':'—'}</td>
-    <td style="font-size:11px">${r.drenaje1||r.drenaje2||'—'}</td>
-    <td style="font-size:11px">${r.ostomia||'—'}</td>
-    <td style="font-size:11px">${r.dispositivoResp||'—'}</td>
-    <td style="text-align:center">${r.ventMec==='Sí'?'✓':'—'}</td>
-    <td style="text-align:center">${r.riesgoCaida||'—'}</td>
-    <td style="text-align:center">${r.riesgoLPP||'—'}</td>
-    <td style="text-align:center">${r['caídaEvento']==='Sí'?'<span style="color:var(--rojo);font-weight:700">⚠</span>':'—'}</td>
-    <td style="text-align:center">${r['lppEvento']==='Sí'?`<span style="color:var(--rojo);font-weight:700">⚠</span>`:'—'}</td>
-    <td style="font-size:11px;max-width:100px">${[r.med1,r.med2,r.med3].filter(Boolean).join(', ')||'—'}</td>
-    <td style="font-size:11px">${r.transfusion&&r.transfusion!=='No'?r.transfusion:'—'}</td>
-    <td style="font-size:11px">${r.dieta||'—'}</td>
     <td>${nasChip(r)}</td>
+    <td style="font-size:11px">${alertas.join(' ')||'—'}</td>
+    <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();requirePin(()=>abrirModalPaciente(${r.id},'hosp'))">✏</button></td>
+  </tr>
+  <tr id="exp-${r.id}" class="exp-row"><td colspan="10">${panelDetalle(r,'hosp')}</td></tr>`; }).join(''); }
+
+function renderUCI(){ const data=filtrarActivos(DB.uci); const tbody=document.getElementById('uci-tbody'); const empty=document.getElementById('uci-empty'); const hoy=dk(cur); document.getElementById('uci-count').textContent=data.length+' paciente'+(data.length!==1?'s':'')+' activo'+(data.length!==1?'s':''); if(!data.length){tbody.innerHTML='';empty.style.display='block';return;} empty.style.display='none'; tbody.innerHTML=data.map(r=>{ const egresaHoy=r.fechaEgreso===hoy; const rowStyle=egresaHoy?'background:#F0FDF4;':'';
+  const alertas=[];
+  if(r['caídaEvento']==='Sí') alertas.push('<span style="color:var(--rojo);font-size:10px;font-weight:700">Caída</span>');
+  if(r['lppEvento']==='Sí') alertas.push('<span style="color:var(--rojo);font-size:10px;font-weight:700">LPP</span>');
+  if(r.infeccionEvento==='Sí') alertas.push('<span style="color:var(--rojo);font-size:10px;font-weight:700">Infec.</span>');
+  if(r.ventMec==='Sí') alertas.push('<span style="color:var(--az);font-size:10px;font-weight:700">VM</span>');
+  return `<tr id="row-${r.id}" class="row-expandable" style="${rowStyle}" onclick="toggleExpand(${r.id})">
+    <td><b>${r.habitacion||'—'}</b></td>
+    <td style="font-size:11px;white-space:nowrap">${r.fechaIngreso||'—'}<br><span style="color:var(--gris4)">${r.horaIngreso||''}</span></td>
+    <td style="text-align:center;font-weight:600;color:var(--rojo)">${diasEstancia(r.fechaIngreso)}</td>
+    <td style="font-weight:600;color:var(--az2)">${r.nombre||'—'}<br><span style="font-size:10px;font-weight:400;color:var(--gris4)">${r.sexo||''} · ${r.edad||''}a</span></td>
+    <td style="font-family:'DM Mono',monospace;font-size:11px">${r.expediente||'—'}</td>
+    <td style="font-size:11px;color:var(--gris5);max-width:180px">${r.diagnostico||'—'}</td>
+    <td style="font-size:11px">${r.medico||'—'}</td>
+    <td>${nasChip(r)}</td>
+    <td style="font-size:11px">${alertas.join(' ')||'—'}</td>
     <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();requirePin(()=>abrirModalPaciente(${r.id},'uci'))">✏</button></td>
   </tr>
-  <tr id="exp-${r.id}" class="exp-row"><td colspan="${colCount}">${panelDetalle(r,'uci')}</td></tr>`; }).join(''); }
+  <tr id="exp-${r.id}" class="exp-row"><td colspan="10">${panelDetalle(r,'uci')}</td></tr>`; }).join(''); }
 
 function renderEndo(){ const data=filtrarDia(DB.endo); const tbody=document.getElementById('endo-tbody'); const empty=document.getElementById('endo-empty'); document.getElementById('endo-count').textContent=data.length+' procedimiento'+(data.length!==1?'s':''); if(!data.length){tbody.innerHTML='';empty.style.display='block';return;} empty.style.display='none'; tbody.innerHTML=data.map(r=>`<tr><td><b>${r.sala||'—'}</b></td><td style="font-size:11px">${r.fechaIngreso||'—'}</td><td style="font-family:'DM Mono',monospace;font-size:11px">${r.horaIngreso||'—'}</td><td style="max-width:130px;font-weight:500">${r.nombre||'—'}</td><td style="font-family:'DM Mono',monospace;font-size:11px">${r.expediente||'—'}</td><td><span class="badge ${r.sexo==='M'?'b-m':'b-f'}">${r.sexo||'—'}</span></td><td style="text-align:center">${r.edad||'—'}</td><td style="max-width:150px;font-size:11px;color:var(--gris5)">${r.procedimiento||'—'}</td><td style="font-size:11px">${r.especialidad||'—'}</td><td style="font-size:11px">${r.cirujano||'—'}</td><td style="font-size:11px">${r.anestesiologo||'—'}</td><td style="text-align:center">${r.tiempoQx||'—'}</td><td style="font-size:11px">${r.tipo||'—'}</td><td style="font-size:11px">${r.aseguradora||'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="requirePin(()=>abrirModalProcedimiento(${r.id}))">✏</button></td></tr>`).join(''); }
 
