@@ -44,7 +44,6 @@ nav{background:var(--az);padding:0 20px;display:flex;align-items:center;gap:0;he
 .card{background:#fff;border:1px solid var(--gris2);border-radius:var(--r);box-shadow:var(--shadow);margin-bottom:14px}
 .card-header{padding:12px 16px;border-bottom:1px solid var(--gris2);display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--gris0);border-radius:var(--r) var(--r) 0 0}
 .card-title{font-weight:600;font-size:13px;color:var(--gris7);display:flex;align-items:center;gap:7px}
-.card-body{padding:16px}
 .section-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
 .chip-hosp{background:var(--az3);color:var(--az2)}
 .chip-uci{background:var(--rojo3);color:var(--rojo)}
@@ -337,7 +336,59 @@ function toggleLock(){ if(pinOK){ pinOK=false; document.getElementById('modeLabe
 
 function calcularEdad(idFnac,idEdad){ const fnac=document.getElementById(idFnac)?.value; if(!fnac) return; const nac=new Date(fnac+'T12:00'); const hoy=new Date(); let edad=hoy.getFullYear()-nac.getFullYear(); const m=hoy.getMonth()-nac.getMonth(); if(m<0||(m===0&&hoy.getDate()<nac.getDate())) edad--; if(edad>=0&&edad<=120){ const campo=document.getElementById(idEdad); if(campo){ campo.value=edad; campo.style.color='var(--verde)'; campo.style.fontWeight='600'; } } }
 
-function inferirNAS(r){ const meds=[r.med1||'',r.med2||'',r.med3||''].map(m=>m.toLowerCase()); const tieneVasopresor=meds.some(m=>m.includes('vasopresor')); const tieneSedacion=meds.some(m=>m.includes('sedac')); const medAR=meds.filter(m=>m.length>0).length; const glasgowNum=parseInt(r.glasgow)||15; const tieneFoley=r.sondaFoley==='Sí'; const tieneSNG=r.sng==='Sí'; const tieneDren=!!(r.drenaje1||r.drenaje2); const tieneIV2=!!(r.accesoIV2); const tieneVM=r.ventMec==='Sí'; const tieneAF=r.altoFlujo==='Sí'; const monCont=r.monitoreo==='Continuo'; if(tieneVM||tieneVasopresor||tieneSedacion||(medAR>=2&&tieneFoley)) return{nivel:'Crítico',min:240,color:'var(--rojo)',bg:'var(--rojo3)'}; if(tieneAF||(medAR>=1&&(tieneFoley||tieneSNG||tieneDren))||(tieneFoley&&tieneSNG&&tieneIV2)||glasgowNum<=10) return{nivel:'Alta complejidad',min:195,color:'var(--naranja)',bg:'var(--naranja3)'}; if(monCont||tieneFoley||tieneDren||tieneSNG||glasgowNum<=13) return{nivel:'Moderado',min:115,color:'var(--amarillo)',bg:'var(--amarillo3)'}; return{nivel:'Básico',min:60,color:'var(--verde)',bg:'var(--verde3)'}; }
+// ── NAS — CORREGIDO ────────────────────────────────────────────────────────────
+// Minutos de cuidados por turno de 8h (480 min) — NAS Miranda et al.
+// Básico:           ~25% = 120 min  (paciente estable, sin dispositivos)
+// Moderado:         ~50% = 240 min  (1-2 dispositivos, medicación IV)
+// Alta complejidad: ~75% = 360 min  (múltiples dispositivos, soporte resp.)
+// Crítico:         ~100% = 480 min  (VM, vasopresores, cuidado 1:1)
+const NAS_NIVELES=['Básico','Moderado','Alta complejidad','Crítico'];
+const NAS_COLORS={'Básico':'var(--verde)','Moderado':'var(--amarillo)','Alta complejidad':'var(--naranja)','Crítico':'var(--rojo)'};
+const NAS_BGS={'Básico':'var(--verde3)','Moderado':'var(--amarillo3)','Alta complejidad':'var(--naranja3)','Crítico':'var(--rojo3)'};
+const NAS_MINS={
+  'Básico':120,
+  'Moderado':240,
+  'Alta complejidad':360,
+  'Crítico':480
+};
+
+function inferirNAS(r){
+  // Clasificación NAS — Miranda et al., adaptación clínica CMGA
+  const meds=[r.med1||'',r.med2||'',r.med3||''].map(m=>m.toLowerCase());
+  const tieneVasopresor = meds.some(m=>m.includes('vasopresor'));
+  const tieneSedacion   = meds.some(m=>m.includes('sedac'));
+  const tieneInsulina   = meds.some(m=>m.includes('insulina'));
+  const tieneQuimio     = meds.some(m=>m.includes('quimio'));
+  const nMedsAR         = meds.filter(m=>m.length>0).length;
+  const glasgowNum      = parseInt(r.glasgow)||15;
+  const tieneVM         = r.ventMec==='Sí';
+  const tieneAF         = r.altoFlujo==='Sí';
+  const tieneFoley      = r.sondaFoley==='Sí';
+  const tieneSNG        = r.sng==='Sí';
+  const tieneDren       = !!(r.drenaje1||r.drenaje2);
+  const tieneOstomia    = !!(r.ostomia);
+  const tieneIV2        = !!(r.accesoIV2);
+  const monCont         = r.monitoreo==='Continuo';
+  const aisl            = r.aislamiento||'';
+  const aislamientoEspecial = aisl==='Vía aérea'||aisl==='Contacto plus';
+  const dispositivosCount = [tieneFoley,tieneSNG,tieneDren,tieneIV2,tieneOstomia].filter(Boolean).length;
+
+  // CRÍTICO — VM, vasopresores, sedación, quimio, Glasgow ≤8, o combinación hemodinámica
+  if(tieneVM||tieneVasopresor||tieneSedacion||tieneQuimio||glasgowNum<=8||(tieneVasopresor&&tieneFoley&&monCont))
+    return{nivel:'Crítico',color:'var(--rojo)',bg:'var(--rojo3)'};
+
+  // ALTA COMPLEJIDAD — alto flujo, ≥3 dispositivos, Glasgow ≤10, aislamiento especial
+  if(tieneAF||glasgowNum<=10||aislamientoEspecial||dispositivosCount>=3||(nMedsAR>=2&&dispositivosCount>=1)||(tieneFoley&&tieneSNG&&tieneIV2)||(tieneInsulina&&monCont))
+    return{nivel:'Alta complejidad',color:'var(--naranja)',bg:'var(--naranja3)'};
+
+  // MODERADO — 1-2 dispositivos, monitoreo continuo, Glasgow ≤13, riesgo alto Braden/Downton
+  if(monCont||glasgowNum<=13||tieneFoley||tieneSNG||tieneDren||tieneIV2||nMedsAR>=1||(r.riesgoLPP&&parseInt(r.riesgoLPP)<=14)||(r.riesgoCaida&&parseInt(r.riesgoCaida)>=3))
+    return{nivel:'Moderado',color:'var(--amarillo)',bg:'var(--amarillo3)'};
+
+  // BÁSICO — paciente estable, sin dispositivos complejos
+  return{nivel:'Básico',color:'var(--verde)',bg:'var(--verde3)'};
+}
+
 function nasChip(r){ const n=inferirNAS(r); return `<span style="background:${n.bg};color:${n.color};padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700;white-space:nowrap">${n.nivel}</span>`; }
 
 function showPage(id,btn){ document.querySelectorAll('.page').forEach(p=>p.classList.remove('active')); document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active')); document.getElementById('page-'+id).classList.add('active'); if(btn) btn.classList.add('active'); actualizarFechas(); if(id==='hosp') renderHosp(); if(id==='uci') renderUCI(); if(id==='endo') renderEndo(); if(id==='def') renderDef(); if(id==='concentrado') renderConcentrado(); }
@@ -374,12 +425,10 @@ document.getElementById('modalPac').classList.add('open'); }
 
 async function guardarPaciente(id,seccion){ const d={ id:id||nid++,fecha:dk(cur),turno, habitacion:document.getElementById('p-hab').value, fechaIngreso:document.getElementById('p-fing').value, horaIngreso:document.getElementById('p-hing').value, nombre:document.getElementById('p-nombre').value.trim(), expediente:document.getElementById('p-exp').value.trim().toUpperCase(), fechaNac:document.getElementById('p-fnac').value, sexo:document.getElementById('p-sexo').value, edad:document.getElementById('p-edad').value, medico:document.getElementById('p-medico').value.trim(), aseguradora:document.getElementById('p-aseg').value.trim(), diagnostico:document.getElementById('p-diag').value.trim(), procedimiento:document.getElementById('p-proc').value.trim(), fechaProcedimiento:document.getElementById('p-fproc').value, fechaEgreso:document.getElementById('p-feg').value, horaEgreso:document.getElementById('p-heg').value, alergias:document.getElementById('p-alergias').value.trim(), glasgow:document.getElementById('p-glasgow').value, aislamiento:document.getElementById('p-aisl').value, monitoreo:document.getElementById('p-mon').value, estadoClin:document.getElementById('p-estclin').value.trim(), accesoIV:document.getElementById('p-iv1').value.trim(), accesoIV1Fecha:document.getElementById('p-iv1f').value, accesoIV2:document.getElementById('p-iv2').value.trim(), accesoIV2Fecha:document.getElementById('p-iv2f').value, sondaFoley:document.getElementById('p-foley').value, sondaFoleyFecha:document.getElementById('p-foleyf').value, sng:document.getElementById('p-sng').value, sngFecha:document.getElementById('p-sngf').value, drenaje1:document.getElementById('p-dr1').value.trim(), drenaje1Fecha:document.getElementById('p-dr1f').value, drenaje2:document.getElementById('p-dr2').value.trim(), drenaje2Fecha:document.getElementById('p-dr2f').value, ostomia:document.getElementById('p-ost').value.trim(), dispositivoResp:document.getElementById('p-disp-resp').value.trim(), ltsMin:document.getElementById('p-lts').value, altoFlujo:document.getElementById('p-altof').value, soporteRespFecha:document.getElementById('p-respf').value, ventMec:document.getElementById('p-ventmec').value, ventMecFecha:document.getElementById('p-ventmecf').value, riesgoCaida:document.getElementById('p-caida').value, riesgoLPP:document.getElementById('p-lpp').value, movilizacion:document.getElementById('p-movil').value, higiene:document.getElementById('p-hig').value, caídaEvento:document.getElementById('p-caida-ev').value, caídaFecha:document.getElementById('p-caida-fecha').value, lppEvento:document.getElementById('p-lpp-ev').value, lppGrado:document.getElementById('p-lpp-grado').value, infeccionEvento:document.getElementById('p-inf-ev').value, infeccionTipo:document.getElementById('p-inf-tipo').value, infeccionAgente:document.getElementById('p-inf-agente').value.trim(), infeccionFecha:document.getElementById('p-inf-fecha').value, med1:document.getElementById('p-med1').value.trim(), med2:document.getElementById('p-med2').value.trim(), med3:document.getElementById('p-med3').value.trim(), transfusion:document.getElementById('p-transf').value, hemoUnidades:document.getElementById('p-hemounid').value, dieta:document.getElementById('p-dieta').value }; if(id){ const i=DB[seccion].findIndex(r=>r.id===id); if(i>-1) DB[seccion][i]=d; } else DB[seccion].push(d); showLoader('💾 Guardando…'); await apiCall({action:id?'update':'save',section:seccion,record:d}); hideLoader(); closeModal('modalPac'); if(seccion==='hosp') renderHosp(); else renderUCI(); toast('✓ Paciente guardado'); }
 
-// ── MODAL PROCEDIMIENTO ───────────────────────────────────────────────────────
 function abrirModalProcedimiento(id){ const rec=id?DB.endo.find(r=>r.id===id)||{}:{}; document.getElementById('modalProcContent').innerHTML=`<div class="modal-title">${id?'Editar':'Nuevo'} procedimiento — Endoscopia / Urgencias<button class="modal-close" onclick="closeModal('modalProc')">×</button></div><div class="form-grid-3"><div class="form-group"><label>Sala</label><select id="e-sala"><option value="">—</option>${['Endoscopia','Urgencias'].map(s=>`<option${rec.sala===s?' selected':''}>${s}</option>`).join('')}</select></div><div class="form-group"><label>Fecha</label><input type="date" id="e-fecha" value="${rec.fechaIngreso||dk(cur)}"></div><div class="form-group"><label>Hora</label><input type="text" id="e-hora" value="${rec.horaIngreso||''}" placeholder="HH:MM" maxlength="5" style="font-family:'DM Mono',monospace" oninput="fmtHora(this)"></div><div class="form-group full"><label>Nombre del paciente</label><input id="e-nombre" value="${rec.nombre||''}" placeholder="Apellidos, Nombre"></div><div class="form-group"><label>N° Expediente</label><input id="e-exp" value="${rec.expediente||''}"></div><div class="form-group"><label>Fecha de nacimiento</label><input type="date" id="e-fnac" value="${rec.fechaNac||''}" onchange="calcularEdad('e-fnac','e-edad')"></div><div class="form-group"><label>Sexo</label><select id="e-sexo"><option value="">—</option><option value="M"${rec.sexo==='M'?' selected':''}>Masculino</option><option value="F"${rec.sexo==='F'?' selected':''}>Femenino</option></select></div><div class="form-group"><label>Edad</label><input type="number" id="e-edad" value="${rec.edad||''}" min="0" placeholder="Calculada automáticamente"></div><div class="form-group full"><label>Procedimiento quirúrgico</label><input id="e-proc" value="${rec.procedimiento||''}"></div><div class="form-group"><label>Especialidad</label><input id="e-esp" value="${rec.especialidad||''}"></div><div class="form-group"><label>Cirujano</label><input id="e-cir" value="${rec.cirujano||''}"></div><div class="form-group"><label>Anestesiólogo</label><input id="e-anest" value="${rec.anestesiologo||''}"></div><div class="form-group"><label>Tiempo quirúrgico (min)</label><input type="number" id="e-tqx" value="${rec.tiempoQx||''}" min="0"></div><div class="form-group"><label>Tipo</label><select id="e-tipo"><option value="">—</option>${['Programado','Urgente'].map(t=>`<option${rec.tipo===t?' selected':''}>${t}</option>`).join('')}</select></div><div class="form-group"><label>Aseguradora</label><input id="e-aseg" value="${rec.aseguradora||''}"></div></div><div class="form-actions">${id?`<button class="btn btn-danger btn-sm" onclick="eliminar(${id},'endo','modalProc')">🗑 Eliminar</button>`:''}<button class="btn btn-ghost" onclick="closeModal('modalProc')">Cancelar</button><button class="btn btn-success" onclick="guardarProcedimiento(${id||0})">✓ Guardar</button></div>`; document.getElementById('modalProc').classList.add('open'); }
 
 async function guardarProcedimiento(id){ const d={ id:id||nid++,fecha:dk(cur),turno, sala:document.getElementById('e-sala').value, fechaIngreso:document.getElementById('e-fecha').value, horaIngreso:document.getElementById('e-hora').value, nombre:document.getElementById('e-nombre').value.trim(), expediente:document.getElementById('e-exp').value.trim().toUpperCase(), fechaNac:document.getElementById('e-fnac').value, sexo:document.getElementById('e-sexo').value, edad:document.getElementById('e-edad').value, procedimiento:document.getElementById('e-proc').value.trim(), especialidad:document.getElementById('e-esp').value.trim(), cirujano:document.getElementById('e-cir').value.trim(), anestesiologo:document.getElementById('e-anest').value.trim(), tiempoQx:document.getElementById('e-tqx').value, tipo:document.getElementById('e-tipo').value, aseguradora:document.getElementById('e-aseg').value.trim() }; if(id){ const i=DB.endo.findIndex(r=>r.id===id); if(i>-1) DB.endo[i]=d; } else DB.endo.push(d); showLoader('💾 Guardando…'); await apiCall({action:id?'update':'save',section:'endo',record:d}); hideLoader(); closeModal('modalProc'); renderEndo(); toast('✓ Procedimiento guardado'); }
 
-// ── MODAL DEFUNCIÓN ───────────────────────────────────────────────────────────
 function abrirModalDefuncion(id){ const rec=id?DB.def.find(r=>r.id===id)||{}:{}; document.getElementById('modalDefContent').innerHTML=`<div class="modal-title">${id?'Editar':'Registrar'} defunción<button class="modal-close" onclick="closeModal('modalDef')">×</button></div><div class="form-grid-3"><div class="form-group"><label>Servicio</label><select id="d-srv"><option value="">—</option>${['Hospitalización','UCI','UCIM'].map(s=>`<option${rec.servicio===s?' selected':''}>${s}</option>`).join('')}</select></div><div class="form-group"><label>Fecha ingreso</label><input type="date" id="d-fing" value="${rec.fechaIngreso||''}"></div><div class="form-group full"><label>Nombre del paciente</label><input id="d-nombre" value="${rec.nombre||''}" placeholder="Apellidos, Nombre"></div><div class="form-group"><label>N° Expediente</label><input id="d-exp" value="${rec.expediente||''}"></div><div class="form-group"><label>Sexo</label><select id="d-sexo"><option value="">—</option><option value="M"${rec.sexo==='M'?' selected':''}>Masculino</option><option value="F"${rec.sexo==='F'?' selected':''}>Femenino</option></select></div><div class="form-group"><label>Edad</label><input type="number" id="d-edad" value="${rec.edad||''}" min="0"></div><div class="form-group full"><label>Diagnóstico de ingreso</label><input id="d-diaging" value="${rec.diagIngreso||''}"></div><div class="form-group full"><label>Diagnóstico de defunción</label><input id="d-diagdef" value="${rec.diagDefuncion||''}"></div><div class="form-group"><label>Fecha de defunción</label><input type="date" id="d-fdef" value="${rec.fechaDefuncion||dk(cur)}"></div><div class="form-group"><label>Hora de defunción</label><input type="text" id="d-hdef" value="${rec.horaDefuncion||''}" placeholder="HH:MM" maxlength="5" style="font-family:'DM Mono',monospace" oninput="fmtHora(this)"></div><div class="form-group"><label>Médico tratante</label><input id="d-med" value="${rec.medico||''}"></div><div class="form-group"><label>Hora ingreso tanatorio</label><input type="text" id="d-htanin" value="${rec.horaIngresoTanatorio||''}" placeholder="HH:MM" maxlength="5" style="font-family:'DM Mono',monospace" oninput="fmtHora(this)"></div><div class="form-group"><label>Hora egreso tanatorio</label><input type="text" id="d-htaneg" value="${rec.horaEgresoTanatorio||''}" placeholder="HH:MM" maxlength="5" style="font-family:'DM Mono',monospace" oninput="fmtHora(this)"></div><div class="form-group full"><label>Observaciones</label><input id="d-obs" value="${rec.observaciones||''}"></div></div><div class="form-actions">${id?`<button class="btn btn-danger btn-sm" onclick="eliminar(${id},'def','modalDef')">🗑 Eliminar</button>`:''}<button class="btn btn-ghost" onclick="closeModal('modalDef')">Cancelar</button><button class="btn btn-success" onclick="guardarDefuncion(${id||0})">✓ Guardar</button></div>`; document.getElementById('modalDef').classList.add('open'); }
 
 async function guardarDefuncion(id){ const d={ id:id||nid++,fecha:dk(cur), servicio:document.getElementById('d-srv').value, fechaIngreso:document.getElementById('d-fing').value, nombre:document.getElementById('d-nombre').value.trim(), expediente:document.getElementById('d-exp').value.trim().toUpperCase(), sexo:document.getElementById('d-sexo').value, edad:document.getElementById('d-edad').value, diagIngreso:document.getElementById('d-diaging').value.trim(), diagDefuncion:document.getElementById('d-diagdef').value.trim(), fechaDefuncion:document.getElementById('d-fdef').value, horaDefuncion:document.getElementById('d-hdef').value, medico:document.getElementById('d-med').value.trim(), horaIngresoTanatorio:document.getElementById('d-htanin').value, horaEgresoTanatorio:document.getElementById('d-htaneg').value, observaciones:document.getElementById('d-obs').value.trim() }; if(id){ const i=DB.def.findIndex(r=>r.id===id); if(i>-1) DB.def[i]=d; } else DB.def.push(d); showLoader('💾 Guardando…'); await apiCall({action:id?'update':'save',section:'def',record:d}); hideLoader(); closeModal('modalDef'); renderDef(); toast('✓ Defunción registrada'); }
@@ -389,16 +438,9 @@ async function eliminar(id,seccion,modal){ if(!confirm('¿Eliminar este registro
 function exportarCSV(seccion){ const data=seccion==='hosp'||seccion==='uci'?filtrarActivos(DB[seccion]):filtrarDia(DB[seccion]); if(!data.length){toast('Sin datos para exportar','error');return;} const keys=Object.keys(data[0]); const csv=[keys.join(',')].concat(data.map(r=>keys.map(k=>'"'+String(r[k]||'').replace(/"/g,'""')+'"').join(','))).join('\n'); const a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv); a.download=`censo_${seccion}_${dk(cur)}.csv`; a.click(); toast('CSV exportado'); }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// CONCENTRADO — INDICADORES CORREGIDOS
+// CONCENTRADO
 // ══════════════════════════════════════════════════════════════════════════════
 function diasEntreFechas(f1,f2){ if(!f1||!f2) return null; const d1=new Date(f1+'T12:00'), d2=new Date(f2+'T12:00'); const diff=Math.round((d2-d1)/(1000*60*60*24)); return diff>=0?diff:null; }
-
-// NAS helpers
-const NAS_NIVELES=['Básico','Moderado','Alta complejidad','Crítico'];
-const NAS_COLORS={'Básico':'var(--verde)','Moderado':'var(--amarillo)','Alta complejidad':'var(--naranja)','Crítico':'var(--rojo)'};
-const NAS_BGS={'Básico':'var(--verde3)','Moderado':'var(--amarillo3)','Alta complejidad':'var(--naranja3)','Crítico':'var(--rojo3)'};
-// Minutos de cuidados NAS por nivel (punto medio del rango)
-const NAS_MINS={'Básico':60,'Moderado':115,'Alta complejidad':195,'Crítico':280};
 
 function renderConcentrado(){
   const mes=parseInt(document.getElementById('con-mes').value);
@@ -418,16 +460,12 @@ function renderConcentrado(){
   const uci=DB.uci.filter(perteneceAlMes);
   const todos=[...hosp,...uci];
 
-  // Ingresos del mes (fechaIngreso dentro del rango)
   const ingresosHosp=hosp.filter(r=>(r.fechaIngreso||r.fecha||'')>=inicioMes&&(r.fechaIngreso||r.fecha||'')<=finMes);
   const ingresosUCI=uci.filter(r=>(r.fechaIngreso||r.fecha||'')>=inicioMes&&(r.fechaIngreso||r.fecha||'')<=finMes);
-
-  // Egresos del mes
   const egresosHosp=hosp.filter(r=>r.fechaEgreso>=inicioMes&&r.fechaEgreso<=finMes);
   const egresosUCI=uci.filter(r=>r.fechaEgreso>=inicioMes&&r.fechaEgreso<=finMes);
   const totalEgresos=egresosHosp.length+egresosUCI.length;
 
-  // ── Pacientes-día ─────────────────────────────────────────────────────────
   function pacDia(arr){
     return arr.reduce((sum,r)=>{
       const ing=r.fechaIngreso||r.fecha||''; const egr=r.fechaEgreso||finMes;
@@ -438,18 +476,13 @@ function renderConcentrado(){
   }
   const pdHosp=pacDia(hosp), pdUCI=pacDia(uci), pdTodos=pdHosp+pdUCI;
 
-  // ── 1. OCUPACIÓN ──────────────────────────────────────────────────────────
   const ocupHosp=CAMAS_HOSP*diasMes>0?Math.round(pdHosp/(CAMAS_HOSP*diasMes)*1000)/10:null;
   const ocupUCI=(CAMAS_UCI+CAMAS_UCIM)*diasMes>0?Math.round(pdUCI/((CAMAS_UCI+CAMAS_UCIM)*diasMes)*1000)/10:null;
 
-  // ── 2. ESTANCIA PROMEDIO ──────────────────────────────────────────────────
   const sumaEstancia=[...egresosHosp,...egresosUCI].reduce((s,r)=>{ const d=diasEntreFechas(r.fechaIngreso||r.fecha,r.fechaEgreso); return s+(d!==null?Math.max(1,d):0); },0);
   const estanciaPromedio=totalEgresos>0?Math.round(sumaEstancia/totalEgresos*10)/10:null;
-
-  // ── 3. ROTACIÓN ───────────────────────────────────────────────────────────
   const rotacion=Math.round(egresosHosp.length/CAMAS_HOSP*10)/10;
 
-  // ── 4. INTERVALO SUSTITUCIÓN ──────────────────────────────────────────────
   function calcIntervalo(arr){
     const porHab={};
     arr.forEach(r=>{ const h=String(r.habitacion||''); if(!h) return; if(!porHab[h]) porHab[h]=[]; porHab[h].push(r); });
@@ -468,7 +501,6 @@ function renderConcentrado(){
   }
   const intervaloSust=calcIntervalo([...DB.hosp,...DB.uci]);
 
-  // ── 5. REINGRESOS 30 DÍAS ─────────────────────────────────────────────────
   let nReingresos=0;
   const todosConExp=[...DB.hosp,...DB.uci].filter(r=>r.expediente);
   [...egresosHosp,...egresosUCI].forEach(egr=>{
@@ -478,52 +510,44 @@ function renderConcentrado(){
   });
   const pctReingresos=totalEgresos>0?Math.round(nReingresos/totalEgresos*1000)/10:null;
 
-  // ── 6. TASA CAÍDAS: (caídas ÷ pacientes-día) × 1000 ──────────────────────
   const nCaidasH=hosp.filter(r=>r['caídaEvento']==='Sí').length;
   const nCaidasU=uci.filter(r=>r['caídaEvento']==='Sí').length;
   const nCaidas=nCaidasH+nCaidasU;
-  // FÓRMULA CORRECTA: caídas ÷ pacientes-día × 1000
   const tasaCaidas=pdTodos>0?Math.round(nCaidas/pdTodos*1000*100)/100:null;
 
-  // ── 7. TASA LPP ───────────────────────────────────────────────────────────
   const nLPP=todos.filter(r=>r.lppEvento==='Sí').length;
   const tasaLPP=todos.length>0?Math.round(nLPP/todos.length*1000)/10:null;
 
-  // ── INFECCIONES ───────────────────────────────────────────────────────────
   const infHosp=hosp.filter(r=>r.infeccionEvento==='Sí');
   const infUCI=uci.filter(r=>r.infeccionEvento==='Sí');
   const infTodos=[...infHosp,...infUCI];
   const infCount={};
   infTodos.forEach(r=>{ if(r.infeccionTipo){ infCount[r.infeccionTipo]=(infCount[r.infeccionTipo]||0)+1; } });
 
-  // ── DEFUNCIONES ───────────────────────────────────────────────────────────
   const defMes=DB.def.filter(r=>r.fecha>=inicioMes&&r.fecha<=finMes);
   const pctMort=todos.length>0?Math.round(defMes.length/todos.length*1000)/10:0;
 
-  // ── NAS POR SERVICIO ──────────────────────────────────────────────────────
+  // ── NAS — distribución por servicio ────────────────────────────────────────
   function nasDistrib(arr){
     const c={Básico:0,Moderado:0,'Alta complejidad':0,Crítico:0};
-    arr.forEach(r=>{ const n=inferirNAS(r); if(c[n.nivel]!==undefined) c[n.nivel]++; }); return c;
+    arr.forEach(r=>{ const n=inferirNAS(r); if(c[n.nivel]!==undefined) c[n.nivel]++; });
+    return c;
   }
-  const nasH=nasDistrib(hosp), nasU=nasDistrib(uci);
+  const nasH=nasDistrib(hosp);
+  const nasU=nasDistrib(uci);
 
-  // ── ENFERMERAS NECESARIAS (por turno) ─────────────────────────────────────
-  // Minutos disponibles por turno de 8h = 480 min
-  // Cada enfermera cubre 480 min de cuidados. Sumamos min NAS de todos los pacientes activos del mes
-  // y calculamos cuántas enfermeras hacen falta.
-  // Usamos promedio de pacientes activos = pdTodos / diasMes como censo promedio
-  function enfNecesarias(nasCount, pd, diasM){
-    const promPac=diasM>0?pd/diasM:0;
-    // Distribuir proporcionalmente
-    const total=Object.values(nasCount).reduce((s,v)=>s+v,0)||1;
-    const minsTotales=NAS_NIVELES.reduce((s,nv)=>s+(nasCount[nv]||0)/total*NAS_MINS[nv]*promPac,0);
-    return Math.ceil(minsTotales/480*10)/10; // enfermeras necesarias
+  // ── Enfermeras necesarias por turno (8h = 480 min) ─────────────────────────
+  // Fórmula: Σ(nPacientes_por_nivel × min_NAS_nivel) ÷ 480
+  // NAS 100% = 1 enfermera dedicada a ese paciente todo el turno
+  // Base: pacientes ACTIVOS del mes (no promedio mensual)
+  function enfNecesarias(nasCount){
+    const minsTotales = NAS_NIVELES.reduce((s,nv) => s + (nasCount[nv]||0) * NAS_MINS[nv], 0);
+    return Math.round(minsTotales / 480 * 10) / 10;
   }
-  const enfH=enfNecesarias(nasH,pdHosp,diasMes);
-  const enfU=enfNecesarias(nasU,pdUCI,diasMes);
+  const enfH = enfNecesarias(nasH);
+  const enfU = enfNecesarias(nasU);
   const ENF_ACTUALES_H=4, ENF_ACTUALES_U=4;
 
-  // ── DEVICES POR SERVICIO ──────────────────────────────────────────────────
   function dispositivos(arr){
     return {
       foley:arr.filter(r=>r.sondaFoley==='Sí').length,
@@ -537,9 +561,7 @@ function renderConcentrado(){
   }
   const dispH=dispositivos(hosp), dispU=dispositivos(uci);
   const nTransf=dispH.transfusion+dispU.transfusion;
-  const nVM=dispH.vm+dispU.vm;
 
-  // ── DIETS, MEDS, ISOLATION ────────────────────────────────────────────────
   const dietaCount={}, medCount={}, aislaCount={};
   todos.forEach(r=>{
     if(r.dieta) dietaCount[r.dieta]=(dietaCount[r.dieta]||0)+1;
@@ -549,7 +571,6 @@ function renderConcentrado(){
   const glasgowGrupos={'15 (Normal)':0,'13-14 (Leve)':0,'9-12 (Moderado)':0,'≤8 (Grave)':0};
   todos.forEach(r=>{ const g=parseInt(r.glasgow)||0; if(g===15) glasgowGrupos['15 (Normal)']++; else if(g>=13) glasgowGrupos['13-14 (Leve)']++; else if(g>=9) glasgowGrupos['9-12 (Moderado)']++; else if(g>0) glasgowGrupos['≤8 (Grave)']++; });
 
-  // ── HELPER TARJETA INDICADOR ──────────────────────────────────────────────
   function ic(color,titulo,formula,valor,desc,barPct){
     return `<div class="ind-card">
       <div class="ind-hdr"><div class="ind-dot" style="background:${color}"></div><span class="ind-ttl">${titulo}</span></div>
@@ -559,19 +580,6 @@ function renderConcentrado(){
       <div class="ind-bar"><div class="ind-fill" style="width:${Math.min(barPct||0,100)}%;background:${color}"></div></div>
     </div>`;
   }
-  // helper fila dispositivo con barra
-  function dispRow(lbl,nH,nU,color){
-    const tot=nH+nU, base=Math.max(todos.length,1);
-    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--gris1)">
-      <span style="font-size:12px;color:var(--gris6)">${lbl}</span>
-      <div style="display:flex;align-items:center;gap:6px">
-        <div style="height:4px;width:${Math.round(tot/base*80)}px;max-width:80px;background:${color};border-radius:2px"></div>
-        <span style="font-size:11px;color:var(--gris4)">H:${nH}</span>
-        <span style="font-size:11px;color:var(--rojo)">UCI:${nU}</span>
-        <span style="font-size:12px;font-weight:600;color:${color};min-width:18px;text-align:right">${tot}</span>
-      </div>
-    </div>`;
-  }
 
   document.getElementById('concentrado-body').innerHTML=`
     <div style="font-size:16px;font-weight:600;color:var(--gris7);margin-bottom:14px">
@@ -579,7 +587,6 @@ function renderConcentrado(){
       <span style="font-size:12px;font-weight:400;color:var(--gris4)">${diasMes} días · ${todos.length} pacientes · ${totalEgresos} egresos</span>
     </div>
 
-    <!-- RESUMEN GENERAL -->
     <div class="stats-grid" style="grid-template-columns:repeat(6,1fr);margin-bottom:14px">
       <div class="stat-card"><div class="stat-lbl">Ingresos Hosp</div><div class="stat-val" style="color:var(--az)">${ingresosHosp.length}</div><div class="stat-sub">${pdHosp} pac-día</div></div>
       <div class="stat-card"><div class="stat-lbl">Egresos Hosp</div><div class="stat-val" style="color:var(--verde)">${egresosHosp.length}</div><div class="stat-sub">Diferencia: ${ingresosHosp.length-egresosHosp.length>=0?'+':''}${ingresosHosp.length-egresosHosp.length}</div></div>
@@ -589,23 +596,14 @@ function renderConcentrado(){
       <div class="stat-card"><div class="stat-lbl">Infecciones</div><div class="stat-val" style="color:var(--morado)">${infTodos.length}</div><div class="stat-sub">H:${infHosp.length} · UCI:${infUCI.length}</div></div>
     </div>
 
-    <!-- COMPARATIVA INGRESOS VS EGRESOS -->
     <div class="ind-grid-2" style="margin-bottom:12px">
       <div class="group-title">📈 Comparativa Ingresos / Egresos del mes</div>
       <div class="ind-card">
         <div class="ind-hdr"><div class="ind-dot" style="background:var(--az)"></div><span class="ind-ttl">Hospitalización — Ingresos vs Egresos</span></div>
         <div style="display:flex;gap:16px;margin-top:8px;align-items:flex-end">
-          <div style="flex:1;text-align:center">
-            <div style="font-size:10px;font-weight:700;color:var(--az);margin-bottom:4px">INGRESOS</div>
-            <div style="font-size:32px;font-weight:700;color:var(--az)">${ingresosHosp.length}</div>
-            <div style="height:6px;background:var(--az);border-radius:3px;margin-top:6px;width:${ingresosHosp.length+egresosHosp.length>0?Math.round(ingresosHosp.length/(ingresosHosp.length+egresosHosp.length)*100):50}%"></div>
-          </div>
+          <div style="flex:1;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--az);margin-bottom:4px">INGRESOS</div><div style="font-size:32px;font-weight:700;color:var(--az)">${ingresosHosp.length}</div><div style="height:6px;background:var(--az);border-radius:3px;margin-top:6px;width:${ingresosHosp.length+egresosHosp.length>0?Math.round(ingresosHosp.length/(ingresosHosp.length+egresosHosp.length)*100):50}%"></div></div>
           <div style="font-size:20px;color:var(--gris4);padding-bottom:14px">↔</div>
-          <div style="flex:1;text-align:center">
-            <div style="font-size:10px;font-weight:700;color:var(--verde);margin-bottom:4px">EGRESOS</div>
-            <div style="font-size:32px;font-weight:700;color:var(--verde)">${egresosHosp.length}</div>
-            <div style="height:6px;background:var(--verde);border-radius:3px;margin-top:6px;width:${ingresosHosp.length+egresosHosp.length>0?Math.round(egresosHosp.length/(ingresosHosp.length+egresosHosp.length)*100):50}%"></div>
-          </div>
+          <div style="flex:1;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--verde);margin-bottom:4px">EGRESOS</div><div style="font-size:32px;font-weight:700;color:var(--verde)">${egresosHosp.length}</div><div style="height:6px;background:var(--verde);border-radius:3px;margin-top:6px;width:${ingresosHosp.length+egresosHosp.length>0?Math.round(egresosHosp.length/(ingresosHosp.length+egresosHosp.length)*100):50}%"></div></div>
         </div>
         <div style="margin-top:10px;padding:8px;background:${ingresosHosp.length>=egresosHosp.length?'var(--az3)':'var(--verde3)'};border-radius:7px;font-size:12px;color:${ingresosHosp.length>=egresosHosp.length?'var(--az2)':'var(--verde)'};font-weight:600;text-align:center">
           ${ingresosHosp.length===egresosHosp.length?'Equilibrio perfecto':ingresosHosp.length>egresosHosp.length?`+${ingresosHosp.length-egresosHosp.length} más ingresos que egresos`:`+${egresosHosp.length-ingresosHosp.length} más egresos que ingresos`}
@@ -614,17 +612,9 @@ function renderConcentrado(){
       <div class="ind-card">
         <div class="ind-hdr"><div class="ind-dot" style="background:var(--rojo)"></div><span class="ind-ttl">UCI / UCIM — Ingresos vs Egresos</span></div>
         <div style="display:flex;gap:16px;margin-top:8px;align-items:flex-end">
-          <div style="flex:1;text-align:center">
-            <div style="font-size:10px;font-weight:700;color:var(--rojo);margin-bottom:4px">INGRESOS</div>
-            <div style="font-size:32px;font-weight:700;color:var(--rojo)">${ingresosUCI.length}</div>
-            <div style="height:6px;background:var(--rojo);border-radius:3px;margin-top:6px;width:${ingresosUCI.length+egresosUCI.length>0?Math.round(ingresosUCI.length/(ingresosUCI.length+egresosUCI.length)*100):50}%"></div>
-          </div>
+          <div style="flex:1;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--rojo);margin-bottom:4px">INGRESOS</div><div style="font-size:32px;font-weight:700;color:var(--rojo)">${ingresosUCI.length}</div><div style="height:6px;background:var(--rojo);border-radius:3px;margin-top:6px;width:${ingresosUCI.length+egresosUCI.length>0?Math.round(ingresosUCI.length/(ingresosUCI.length+egresosUCI.length)*100):50}%"></div></div>
           <div style="font-size:20px;color:var(--gris4);padding-bottom:14px">↔</div>
-          <div style="flex:1;text-align:center">
-            <div style="font-size:10px;font-weight:700;color:var(--naranja);margin-bottom:4px">EGRESOS</div>
-            <div style="font-size:32px;font-weight:700;color:var(--naranja)">${egresosUCI.length}</div>
-            <div style="height:6px;background:var(--naranja);border-radius:3px;margin-top:6px;width:${ingresosUCI.length+egresosUCI.length>0?Math.round(egresosUCI.length/(ingresosUCI.length+egresosUCI.length)*100):50}%"></div>
-          </div>
+          <div style="flex:1;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--naranja);margin-bottom:4px">EGRESOS</div><div style="font-size:32px;font-weight:700;color:var(--naranja)">${egresosUCI.length}</div><div style="height:6px;background:var(--naranja);border-radius:3px;margin-top:6px;width:${ingresosUCI.length+egresosUCI.length>0?Math.round(egresosUCI.length/(ingresosUCI.length+egresosUCI.length)*100):50}%"></div></div>
         </div>
         <div style="margin-top:10px;padding:8px;background:${ingresosUCI.length>=egresosUCI.length?'var(--rojo3)':'var(--naranja3)'};border-radius:7px;font-size:12px;color:${ingresosUCI.length>=egresosUCI.length?'var(--rojo)':'var(--naranja)'};font-weight:600;text-align:center">
           ${ingresosUCI.length===egresosUCI.length?'Equilibrio perfecto':ingresosUCI.length>egresosUCI.length?`+${ingresosUCI.length-egresosUCI.length} más ingresos que egresos`:`+${egresosUCI.length-ingresosUCI.length} más egresos que ingresos`}
@@ -632,18 +622,16 @@ function renderConcentrado(){
       </div>
     </div>
 
-    <!-- INDICADORES RENDIMIENTO -->
     <div class="ind-grid-3" style="margin-bottom:12px">
       <div class="group-title">📊 Indicadores de Rendimiento Hospitalario</div>
       ${ic('var(--az)','Ocupación Hospitalaria (Piso)','(pac-día ÷ camas×días) × 100',ocupHosp!==null?ocupHosp+'%':'—',`${pdHosp} pac-día ÷ (${CAMAS_HOSP}×${diasMes}). Meta: 80–85%`,ocupHosp)}
       ${ic('var(--rojo)','Ocupación UCI / UCIM','(pac-día ÷ camas×días) × 100',ocupUCI!==null?ocupUCI+'%':'—',`${pdUCI} pac-día ÷ (${CAMAS_UCI+CAMAS_UCIM}×${diasMes}). Meta: 70–80%`,ocupUCI)}
       ${ic('var(--verde)','Estancia Promedio','Σ días egresados ÷ total egresos',estanciaPromedio!==null?estanciaPromedio+' días':'—',`${sumaEstancia} días ÷ ${totalEgresos} egresos`,estanciaPromedio?Math.min(estanciaPromedio/10*100,100):0)}
       ${ic('var(--az2)','Índice de Rotación (Piso)','egresos piso ÷ 18 camas',rotacion+' veces',`${egresosHosp.length} egresos ÷ ${CAMAS_HOSP} camas. Meta ≥3/mes`,Math.min(rotacion/5*100,100))}
-      ${ic('var(--cyan)','Intervalo de Sustitución','horas entre egreso e ingreso — misma hab.',intervaloSust!==null?intervaloSust+' h':'— sin datos',intervaloSust!==null?`Promedio de parejas egreso-ingreso consecutivos. Meta <4h`:'Requiere horaEgreso y horaIngreso registradas.',intervaloSust?Math.min(intervaloSust/8*100,100):0)}
+      ${ic('var(--cyan)','Intervalo de Sustitución','horas entre egreso e ingreso — misma hab.',intervaloSust!==null?intervaloSust+' h':'—',intervaloSust!==null?`Promedio de parejas egreso-ingreso consecutivos. Meta <4h`:'Requiere horaEgreso y horaIngreso registradas.',intervaloSust?Math.min(intervaloSust/8*100,100):0)}
       ${ic('var(--morado)','Reingresos a 30 días','(reingresos ÷ egresos) × 100',pctReingresos!==null?pctReingresos+'%':'—',`${nReingresos} reingresaron en ≤30 días de ${totalEgresos} egresos`,Math.min(pctReingresos||0,100))}
     </div>
 
-    <!-- SEGURIDAD -->
     <div class="ind-grid-3" style="margin-bottom:12px">
       <div class="group-title">⚠ Seguridad del Paciente</div>
       ${ic('var(--naranja2)','Tasa de Caídas','(caídas ÷ pacientes-día) × 1000',tasaCaidas!==null?tasaCaidas+' / 1000 pac-día':'—',`${nCaidas} caída${nCaidas!==1?'s':''} (H:${nCaidasH} UCI:${nCaidasU}) en ${pdTodos} pac-día. Meta <1`,Math.min(tasaCaidas||0,100))}
@@ -651,51 +639,32 @@ function renderConcentrado(){
       ${ic('var(--gris5)','Mortalidad','(defunciones ÷ pacientes) × 100',pctMort+'%',`${defMes.length} defunciones de ${todos.length} pacientes`,Math.min(pctMort*5,100))}
     </div>
 
-    <!-- INFECCIONES -->
     <div class="ind-grid-2" style="margin-bottom:12px">
       <div class="group-title">🦠 Infecciones Asociadas a la Atención</div>
       <div class="ind-card">
         <div class="ind-hdr"><div class="ind-dot" style="background:var(--morado)"></div><span class="ind-ttl">Total infecciones detectadas — ${MESES_NOM[mes]}</span></div>
         <div style="display:flex;gap:16px;margin:8px 0 12px">
-          <div style="flex:1;text-align:center;background:var(--az3);border-radius:8px;padding:10px">
-            <div style="font-size:10px;font-weight:700;color:var(--az2)">HOSPITALIZACIÓN</div>
-            <div style="font-size:28px;font-weight:700;color:var(--az2)">${infHosp.length}</div>
-          </div>
-          <div style="flex:1;text-align:center;background:var(--rojo3);border-radius:8px;padding:10px">
-            <div style="font-size:10px;font-weight:700;color:var(--rojo)">UCI / UCIM</div>
-            <div style="font-size:28px;font-weight:700;color:var(--rojo)">${infUCI.length}</div>
-          </div>
-          <div style="flex:1;text-align:center;background:var(--morado3);border-radius:8px;padding:10px">
-            <div style="font-size:10px;font-weight:700;color:var(--morado)">TOTAL</div>
-            <div style="font-size:28px;font-weight:700;color:var(--morado)">${infTodos.length}</div>
-          </div>
+          <div style="flex:1;text-align:center;background:var(--az3);border-radius:8px;padding:10px"><div style="font-size:10px;font-weight:700;color:var(--az2)">HOSPITALIZACIÓN</div><div style="font-size:28px;font-weight:700;color:var(--az2)">${infHosp.length}</div></div>
+          <div style="flex:1;text-align:center;background:var(--rojo3);border-radius:8px;padding:10px"><div style="font-size:10px;font-weight:700;color:var(--rojo)">UCI / UCIM</div><div style="font-size:28px;font-weight:700;color:var(--rojo)">${infUCI.length}</div></div>
+          <div style="flex:1;text-align:center;background:var(--morado3);border-radius:8px;padding:10px"><div style="font-size:10px;font-weight:700;color:var(--morado)">TOTAL</div><div style="font-size:28px;font-weight:700;color:var(--morado)">${infTodos.length}</div></div>
         </div>
         <div style="font-size:10px;color:var(--gris4)">Tasa: ${todos.length>0?Math.round(infTodos.length/todos.length*1000)/10:0}% del total de pacientes del mes</div>
       </div>
       <div class="ind-card">
         <div class="ind-hdr"><div class="ind-dot" style="background:var(--morado)"></div><span class="ind-ttl">Tipos de infección detectados</span></div>
-        ${Object.keys(infCount).length?Object.entries(infCount).sort((a,b)=>b[1]-a[1]).map(([tipo,n])=>`
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--gris1)">
-            <span style="font-size:12px;color:var(--gris6)">${tipo}</span>
-            <span style="background:var(--morado3);color:var(--morado);padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700">${n}</span>
-          </div>`).join(''):'<div style="font-size:12px;color:var(--gris4);padding:8px 0">Sin infecciones registradas en el mes</div>'}
+        ${Object.keys(infCount).length?Object.entries(infCount).sort((a,b)=>b[1]-a[1]).map(([tipo,n])=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--gris1)"><span style="font-size:12px;color:var(--gris6)">${tipo}</span><span style="background:var(--morado3);color:var(--morado);padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700">${n}</span></div>`).join(''):'<div style="font-size:12px;color:var(--gris4);padding:8px 0">Sin infecciones registradas en el mes</div>'}
         ${(()=>{ const agCount={}; infTodos.forEach(r=>{ if(r.infeccionAgente) agCount[r.infeccionAgente]=(agCount[r.infeccionAgente]||0)+1; }); return Object.keys(agCount).length?`<div style="margin-top:10px"><div style="font-size:10px;font-weight:700;color:var(--gris5);margin-bottom:5px;text-transform:uppercase;letter-spacing:.05em">Agentes identificados</div>${Object.entries(agCount).sort((a,b)=>b[1]-a[1]).map(([ag,n])=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--gris1)"><span style="font-size:11px;color:var(--gris6);font-style:italic">${ag}</span><span style="background:var(--amarillo3);color:var(--amarillo);padding:1px 7px;border-radius:99px;font-size:10px;font-weight:700">${n}</span></div>`).join('')}</div>`:''; })()}
-        ${infTodos.length>0?`
-        <div style="margin-top:10px">
-          <div style="font-size:10px;font-weight:700;color:var(--gris5);margin-bottom:6px">PACIENTES AFECTADOS</div>
-          ${infTodos.map(r=>`<div style="font-size:11px;color:var(--gris6);padding:3px 0;border-bottom:1px solid var(--gris1)">
-            <span style="background:${DB.hosp.some(h=>h.id===r.id)?'var(--az3)':'var(--rojo3)'};color:${DB.hosp.some(h=>h.id===r.id)?'var(--az2)':'var(--rojo)'};padding:1px 5px;border-radius:4px;font-size:10px;font-weight:600;margin-right:5px">${DB.hosp.some(h=>h.id===r.id)?'Hosp':'UCI'}</span>
-            ${r.nombre||'—'} · ${r.infeccionTipo||'Sin tipo'}${r.infeccionAgente?` · <span style="background:var(--amarillo3);color:var(--amarillo);padding:1px 5px;border-radius:4px;font-size:10px;font-weight:600">${r.infeccionAgente}</span>`:''}
-          </div>`).join('')}
-        </div>`:''}
+        ${infTodos.length>0?`<div style="margin-top:10px"><div style="font-size:10px;font-weight:700;color:var(--gris5);margin-bottom:6px">PACIENTES AFECTADOS</div>${infTodos.map(r=>`<div style="font-size:11px;color:var(--gris6);padding:3px 0;border-bottom:1px solid var(--gris1)"><span style="background:${DB.hosp.some(h=>h.id===r.id)?'var(--az3)':'var(--rojo3)'};color:${DB.hosp.some(h=>h.id===r.id)?'var(--az2)':'var(--rojo)'};padding:1px 5px;border-radius:4px;font-size:10px;font-weight:600;margin-right:5px">${DB.hosp.some(h=>h.id===r.id)?'Hosp':'UCI'}</span>${r.nombre||'—'} · ${r.infeccionTipo||'Sin tipo'}${r.infeccionAgente?` · <span style="background:var(--amarillo3);color:var(--amarillo);padding:1px 5px;border-radius:4px;font-size:10px;font-weight:600">${r.infeccionAgente}</span>`:''}</div>`).join('')}</div>`:''}
       </div>
     </div>
 
-    <!-- NAS POR SERVICIO -->
+    <!-- NAS -->
     <div style="margin-bottom:12px">
-      <div class="group-title" style="display:flex;align-items:center;gap:6px;padding:10px 0 6px;border-bottom:2px solid var(--gris2);margin-bottom:10px;font-size:11px;font-weight:700;color:var(--gris6);text-transform:uppercase;letter-spacing:.06em">🧠 Escala NAS — Hospitalización vs UCI/UCIM + Enfermeras necesarias</div>
+      <div class="group-title" style="display:flex;align-items:center;gap:6px;padding:10px 0 6px;border-bottom:2px solid var(--gris2);margin-bottom:10px;font-size:11px;font-weight:700;color:var(--gris6);text-transform:uppercase;letter-spacing:.06em">
+        🧠 Escala NAS — Hospitalización vs UCI/UCIM + Enfermeras necesarias
+        <span style="font-size:10px;font-weight:400;color:var(--gris4);text-transform:none;letter-spacing:0">· Básico=120 min · Moderado=240 min · Alta complejidad=360 min · Crítico=480 min / turno 8h</span>
+      </div>
       <div class="ind-grid-2">
-        <!-- NAS HOSP -->
         <div class="ind-card">
           <div class="ind-hdr"><div class="ind-dot" style="background:var(--az)"></div><span class="ind-ttl">NAS — Hospitalización (${hosp.length} pac.)</span></div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 10px">
@@ -703,24 +672,24 @@ function renderConcentrado(){
               <div style="font-size:9px;color:${NAS_COLORS[nv]};font-weight:700">${nv}</div>
               <div style="font-size:22px;font-weight:700;color:${NAS_COLORS[nv]}">${nasH[nv]}</div>
               <div style="font-size:9px;color:${NAS_COLORS[nv]}">${hosp.length>0?Math.round(nasH[nv]/hosp.length*100):0}%</div>
+              <div style="font-size:9px;color:${NAS_COLORS[nv]};margin-top:2px">${NAS_MINS[nv]} min</div>
             </div>`).join('')}
           </div>
           <div style="background:var(--az3);border-radius:8px;padding:10px;display:flex;justify-content:space-between;align-items:center">
             <div>
               <div style="font-size:10px;color:var(--az2);font-weight:700">ENFERMERAS NECESARIAS / TURNO</div>
               <div style="font-size:28px;font-weight:700;color:var(--az2)">${enfH}</div>
-              <div style="font-size:10px;color:var(--az2)">basado en carga NAS promedio</div>
+              <div style="font-size:10px;color:var(--az2)">Σ(pac×min_NAS) ÷ 480 min</div>
             </div>
             <div style="text-align:center">
               <div style="font-size:10px;color:var(--gris5);font-weight:700">PLANTILLA ACTUAL</div>
               <div style="font-size:28px;font-weight:700;color:${enfH>ENF_ACTUALES_H?'var(--rojo)':'var(--verde)'}">${ENF_ACTUALES_H}</div>
               <div style="font-size:11px;font-weight:700;color:${enfH>ENF_ACTUALES_H?'var(--rojo)':'var(--verde)'}">
-                ${enfH>ENF_ACTUALES_H?`⚠ Déficit de ${Math.ceil(enfH-ENF_ACTUALES_H)}`:`✓ Suficiente`}
+                ${enfH>ENF_ACTUALES_H?`⚠ Déficit de ${Math.ceil(enfH-ENF_ACTUALES_H)}`:'✓ Suficiente'}
               </div>
             </div>
           </div>
         </div>
-        <!-- NAS UCI -->
         <div class="ind-card">
           <div class="ind-hdr"><div class="ind-dot" style="background:var(--rojo)"></div><span class="ind-ttl">NAS — UCI / UCIM (${uci.length} pac.)</span></div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 10px">
@@ -728,19 +697,20 @@ function renderConcentrado(){
               <div style="font-size:9px;color:${NAS_COLORS[nv]};font-weight:700">${nv}</div>
               <div style="font-size:22px;font-weight:700;color:${NAS_COLORS[nv]}">${nasU[nv]}</div>
               <div style="font-size:9px;color:${NAS_COLORS[nv]}">${uci.length>0?Math.round(nasU[nv]/uci.length*100):0}%</div>
+              <div style="font-size:9px;color:${NAS_COLORS[nv]};margin-top:2px">${NAS_MINS[nv]} min</div>
             </div>`).join('')}
           </div>
           <div style="background:var(--rojo3);border-radius:8px;padding:10px;display:flex;justify-content:space-between;align-items:center">
             <div>
               <div style="font-size:10px;color:var(--rojo);font-weight:700">ENFERMERAS NECESARIAS / TURNO</div>
               <div style="font-size:28px;font-weight:700;color:var(--rojo)">${enfU}</div>
-              <div style="font-size:10px;color:var(--rojo)">basado en carga NAS promedio</div>
+              <div style="font-size:10px;color:var(--rojo)">Σ(pac×min_NAS) ÷ 480 min</div>
             </div>
             <div style="text-align:center">
               <div style="font-size:10px;color:var(--gris5);font-weight:700">PLANTILLA ACTUAL</div>
               <div style="font-size:28px;font-weight:700;color:${enfU>ENF_ACTUALES_U?'var(--rojo)':'var(--verde)'}">${ENF_ACTUALES_U}</div>
               <div style="font-size:11px;font-weight:700;color:${enfU>ENF_ACTUALES_U?'var(--rojo)':'var(--verde)'}">
-                ${enfU>ENF_ACTUALES_U?`⚠ Déficit de ${Math.ceil(enfU-ENF_ACTUALES_U)}`:`✓ Suficiente`}
+                ${enfU>ENF_ACTUALES_U?`⚠ Déficit de ${Math.ceil(enfU-ENF_ACTUALES_U)}`:'✓ Suficiente'}
               </div>
             </div>
           </div>
@@ -748,70 +718,37 @@ function renderConcentrado(){
       </div>
     </div>
 
-    <!-- DISPOSITIVOS POR SERVICIO -->
+    <!-- DISPOSITIVOS -->
     <div class="ind-grid-2" style="margin-bottom:12px">
       <div class="group-title">🔌 Dispositivos Invasivos — Hospitalización vs UCI/UCIM</div>
       <div class="ind-card">
         <div class="ind-hdr"><div class="ind-dot" style="background:var(--az)"></div><span class="ind-ttl">Dispositivos — Hospitalización</span></div>
-        ${[['Sonda Foley',dispH.foley,'var(--az)'],['SNG',dispH.sng,'var(--verde)'],['Drenajes',dispH.dren,'var(--naranja)'],['Alto flujo',dispH.altoF,'var(--cyan)'],['Acceso IV 2',dispH.iv2,'var(--morado)'],['VM',dispH.vm,'var(--rojo)'],['Transfusión',dispH.transfusion,'var(--morado2)']].map(([lbl,n,col])=>`
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--gris1)">
-            <span style="font-size:12px;color:var(--gris6)">${lbl}</span>
-            <div style="display:flex;align-items:center;gap:6px">
-              <div style="height:4px;width:${hosp.length>0?Math.round(n/hosp.length*80):0}px;max-width:80px;background:${col};border-radius:2px"></div>
-              <span style="font-size:12px;font-weight:600;color:${col}">${n}</span>
-              <span style="font-size:10px;color:var(--gris4)">${hosp.length>0?Math.round(n/hosp.length*100):0}%</span>
-            </div>
-          </div>`).join('')}
+        ${[['Sonda Foley',dispH.foley,'var(--az)'],['SNG',dispH.sng,'var(--verde)'],['Drenajes',dispH.dren,'var(--naranja)'],['Alto flujo',dispH.altoF,'var(--cyan)'],['Acceso IV 2',dispH.iv2,'var(--morado)'],['VM',dispH.vm,'var(--rojo)'],['Transfusión',dispH.transfusion,'var(--morado2)']].map(([lbl,n,col])=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--gris1)"><span style="font-size:12px;color:var(--gris6)">${lbl}</span><div style="display:flex;align-items:center;gap:6px"><div style="height:4px;width:${hosp.length>0?Math.round(n/hosp.length*80):0}px;max-width:80px;background:${col};border-radius:2px"></div><span style="font-size:12px;font-weight:600;color:${col}">${n}</span><span style="font-size:10px;color:var(--gris4)">${hosp.length>0?Math.round(n/hosp.length*100):0}%</span></div></div>`).join('')}
       </div>
       <div class="ind-card">
         <div class="ind-hdr"><div class="ind-dot" style="background:var(--rojo)"></div><span class="ind-ttl">Dispositivos — UCI / UCIM</span></div>
-        ${[['Sonda Foley',dispU.foley,'var(--az)'],['SNG',dispU.sng,'var(--verde)'],['Drenajes',dispU.dren,'var(--naranja)'],['Alto flujo',dispU.altoF,'var(--cyan)'],['Acceso IV 2',dispU.iv2,'var(--morado)'],['VM',dispU.vm,'var(--rojo)'],['Transfusión',dispU.transfusion,'var(--morado2)']].map(([lbl,n,col])=>`
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--gris1)">
-            <span style="font-size:12px;color:var(--gris6)">${lbl}</span>
-            <div style="display:flex;align-items:center;gap:6px">
-              <div style="height:4px;width:${uci.length>0?Math.round(n/uci.length*80):0}px;max-width:80px;background:${col};border-radius:2px"></div>
-              <span style="font-size:12px;font-weight:600;color:${col}">${n}</span>
-              <span style="font-size:10px;color:var(--gris4)">${uci.length>0?Math.round(n/uci.length*100):0}%</span>
-            </div>
-          </div>`).join('')}
+        ${[['Sonda Foley',dispU.foley,'var(--az)'],['SNG',dispU.sng,'var(--verde)'],['Drenajes',dispU.dren,'var(--naranja)'],['Alto flujo',dispU.altoF,'var(--cyan)'],['Acceso IV 2',dispU.iv2,'var(--morado)'],['VM',dispU.vm,'var(--rojo)'],['Transfusión',dispU.transfusion,'var(--morado2)']].map(([lbl,n,col])=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--gris1)"><span style="font-size:12px;color:var(--gris6)">${lbl}</span><div style="display:flex;align-items:center;gap:6px"><div style="height:4px;width:${uci.length>0?Math.round(n/uci.length*80):0}px;max-width:80px;background:${col};border-radius:2px"></div><span style="font-size:12px;font-weight:600;color:${col}">${n}</span><span style="font-size:10px;color:var(--gris4)">${uci.length>0?Math.round(n/uci.length*100):0}%</span></div></div>`).join('')}
       </div>
     </div>
 
-    <!-- GLASGOW, DIETAS, MEDS, AISLAMIENTOS -->
+    <!-- DIETAS, MEDS, AISLAMIENTOS, GLASGOW -->
     <div class="ind-grid-3" style="margin-bottom:12px">
       <div class="group-title">🍽 Dietas · 💊 Medicamentos AR · 🏥 Aislamientos · 🧠 Glasgow</div>
       <div class="ind-card">
         <div class="ind-hdr"><div class="ind-dot" style="background:var(--verde)"></div><span class="ind-ttl">Dietas prescritas</span></div>
-        ${Object.entries(dietaCount).sort((a,b)=>b[1]-a[1]).map(([d,n])=>`
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--gris1)">
-            <span style="font-size:12px;color:var(--gris6)">${d}</span>
-            <span style="font-size:12px;font-weight:600;color:var(--az2)">${n}</span>
-          </div>`).join('')||'<div style="font-size:12px;color:var(--gris4);padding:8px 0">Sin registros</div>'}
+        ${Object.entries(dietaCount).sort((a,b)=>b[1]-a[1]).map(([d,n])=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--gris1)"><span style="font-size:12px;color:var(--gris6)">${d}</span><span style="font-size:12px;font-weight:600;color:var(--az2)">${n}</span></div>`).join('')||'<div style="font-size:12px;color:var(--gris4);padding:8px 0">Sin registros</div>'}
       </div>
       <div class="ind-card">
         <div class="ind-hdr"><div class="ind-dot" style="background:var(--naranja)"></div><span class="ind-ttl">Medicamentos de alto riesgo</span></div>
-        ${Object.entries(medCount).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([m,n])=>`
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--gris1)">
-            <span style="font-size:12px;color:var(--gris6)">${m}</span>
-            <span style="font-size:12px;font-weight:600;color:var(--naranja)">${n}</span>
-          </div>`).join('')||'<div style="font-size:12px;color:var(--gris4);padding:8px 0">Sin registros</div>'}
+        ${Object.entries(medCount).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([m,n])=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--gris1)"><span style="font-size:12px;color:var(--gris6)">${m}</span><span style="font-size:12px;font-weight:600;color:var(--naranja)">${n}</span></div>`).join('')||'<div style="font-size:12px;color:var(--gris4);padding:8px 0">Sin registros</div>'}
         ${nTransf>0?`<div style="margin-top:8px;padding:6px 8px;background:var(--morado3);border-radius:6px;font-size:11px;color:var(--morado)">🩸 ${nTransf} transfusión${nTransf!==1?'es':''} (H:${dispH.transfusion} UCI:${dispU.transfusion})</div>`:''}
       </div>
       <div class="ind-card">
         <div class="ind-hdr"><div class="ind-dot" style="background:var(--morado)"></div><span class="ind-ttl">Aislamientos</span></div>
-        ${Object.entries(aislaCount).sort((a,b)=>b[1]-a[1]).map(([a,n])=>`
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--gris1)">
-            <span style="font-size:12px;color:var(--gris6)">${a}</span>
-            <span style="font-size:12px;font-weight:600;color:var(--morado)">${n}</span>
-          </div>`).join('')||'<div style="font-size:12px;color:var(--gris4);padding:8px 0">Sin aislamientos</div>'}
+        ${Object.entries(aislaCount).sort((a,b)=>b[1]-a[1]).map(([a,n])=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--gris1)"><span style="font-size:12px;color:var(--gris6)">${a}</span><span style="font-size:12px;font-weight:600;color:var(--morado)">${n}</span></div>`).join('')||'<div style="font-size:12px;color:var(--gris4);padding:8px 0">Sin aislamientos</div>'}
         <div class="ind-card" style="margin-top:10px;padding:10px;border:none;box-shadow:none">
           <div class="ind-hdr"><div class="ind-dot" style="background:var(--verde)"></div><span class="ind-ttl">Glasgow</span></div>
-          ${Object.entries(glasgowGrupos).map(([g,n],i)=>{
-            const cols=['var(--verde)','var(--amarillo)','var(--naranja)','var(--rojo)'];
-            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--gris1)">
-              <span style="font-size:11px;color:var(--gris6)">${g}</span>
-              <span style="font-size:12px;font-weight:600;color:${cols[i]}">${n}</span>
-            </div>`;}).join('')}
+          ${Object.entries(glasgowGrupos).map(([g,n],i)=>{ const cols=['var(--verde)','var(--amarillo)','var(--naranja)','var(--rojo)']; return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--gris1)"><span style="font-size:11px;color:var(--gris6)">${g}</span><span style="font-size:12px;font-weight:600;color:${cols[i]}">${n}</span></div>`; }).join('')}
         </div>
       </div>
     </div>`;
