@@ -527,22 +527,46 @@ function renderConcentrado(){
   const defMes=DB.def.filter(r=>r.fecha>=inicioMes&&r.fecha<=finMes);
   const pctMort=todos.length>0?Math.round(defMes.length/todos.length*1000)/10:0;
 
-  // ── NAS — distribución por servicio ────────────────────────────────────────
+  // ── NAS — pacientes ACTIVOS en el día seleccionado ──────────────────────────
+  // Se usa la misma lógica de filtrarActivos() pero aplicada al mes/año
+  // seleccionado en el concentrado, tomando como fecha de referencia el
+  // último día del mes (o hoy si es el mes en curso).
+  const hoyStr = dk(new Date());
+  const fechaRefH = finMes <= hoyStr ? finMes : hoyStr;
+  function activosEnFecha(arr, fechaRef){
+    return arr.filter(r => {
+      const ing = r.fechaIngreso || r.fecha || '';
+      if(!ing || ing > fechaRef) return false;
+      if(r.fechaEgreso && r.fechaEgreso < fechaRef) return false;
+      return true;
+    });
+  }
+  const hospActivos = activosEnFecha(DB.hosp, fechaRefH);
+  const uciActivos  = activosEnFecha(DB.uci,  fechaRefH);
+
   function nasDistrib(arr){
     const c={Básico:0,Moderado:0,'Alta complejidad':0,Crítico:0};
     arr.forEach(r=>{ const n=inferirNAS(r); if(c[n.nivel]!==undefined) c[n.nivel]++; });
     return c;
   }
-  const nasH=nasDistrib(hosp);
-  const nasU=nasDistrib(uci);
+  const nasH = nasDistrib(hospActivos);
+  const nasU = nasDistrib(uciActivos);
 
-  // ── Enfermeras necesarias por turno (8h = 480 min) ─────────────────────────
-  // Fórmula: Σ(nPacientes_por_nivel × min_NAS_nivel) ÷ 480
-  // NAS 100% = 1 enfermera dedicada a ese paciente todo el turno
-  // Base: pacientes ACTIVOS del mes (no promedio mensual)
+  // Datos auxiliares para la visualización
+  const nasHData = { raw: nasH, promActivos: hospActivos.length };
+  const nasUData = { raw: nasU, promActivos: uciActivos.length };
+
+  // ── Enfermeras necesarias por turno — ratio estándar ─────────────────────
+  // Ratio enfermera:paciente según nivel NAS (por turno de 8h):
+  //   Básico          → 1:4  (0.25 enf por paciente)
+  //   Moderado        → 1:3  (0.33 enf por paciente)
+  //   Alta complejidad→ 1:2  (0.50 enf por paciente)
+  //   Crítico         → 1:1  (1.00 enf por paciente)
+  const RATIO_ENF = {'Básico':0.25,'Moderado':0.33,'Alta complejidad':0.50,'Crítico':1.00};
   function enfNecesarias(nasCount){
-    const minsTotales = NAS_NIVELES.reduce((s,nv) => s + (nasCount[nv]||0) * NAS_MINS[nv], 0);
-    return Math.round(minsTotales / 480 * 10) / 10;
+    return Math.round(
+      NAS_NIVELES.reduce((s,nv) => s + (nasCount[nv]||0) * RATIO_ENF[nv], 0)
+      * 10) / 10;
   }
   const enfH = enfNecesarias(nasH);
   const enfU = enfNecesarias(nasU);
@@ -666,20 +690,20 @@ function renderConcentrado(){
       </div>
       <div class="ind-grid-2">
         <div class="ind-card">
-          <div class="ind-hdr"><div class="ind-dot" style="background:var(--az)"></div><span class="ind-ttl">NAS — Hospitalización (${hosp.length} pac.)</span></div>
+          <div class="ind-hdr"><div class="ind-dot" style="background:var(--az)"></div><span class="ind-ttl">NAS — Hospitalización · ${nasHData.promActivos} pac. activos al ${fechaRefH}</span></div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 10px">
             ${NAS_NIVELES.map(nv=>`<div style="flex:1;min-width:80px;background:${NAS_BGS[nv]};border-radius:7px;padding:7px;text-align:center">
               <div style="font-size:9px;color:${NAS_COLORS[nv]};font-weight:700">${nv}</div>
               <div style="font-size:22px;font-weight:700;color:${NAS_COLORS[nv]}">${nasH[nv]}</div>
               <div style="font-size:9px;color:${NAS_COLORS[nv]}">${hosp.length>0?Math.round(nasH[nv]/hosp.length*100):0}%</div>
-              <div style="font-size:9px;color:${NAS_COLORS[nv]};margin-top:2px">${NAS_MINS[nv]} min</div>
+              <div style="font-size:9px;color:${NAS_COLORS[nv]};margin-top:2px">ratio 1:${({'Básico':4,'Moderado':3,'Alta complejidad':2,'Crítico':1})[nv]}</div>
             </div>`).join('')}
           </div>
           <div style="background:var(--az3);border-radius:8px;padding:10px;display:flex;justify-content:space-between;align-items:center">
             <div>
               <div style="font-size:10px;color:var(--az2);font-weight:700">ENFERMERAS NECESARIAS / TURNO</div>
               <div style="font-size:28px;font-weight:700;color:var(--az2)">${enfH}</div>
-              <div style="font-size:10px;color:var(--az2)">Σ(pac×min_NAS) ÷ 480 min</div>
+              <div style="font-size:10px;color:var(--az2)">Base: ${nasHData.promActivos} pac. activos al ${fechaRefH} · ratio por nivel NAS</div>
             </div>
             <div style="text-align:center">
               <div style="font-size:10px;color:var(--gris5);font-weight:700">PLANTILLA ACTUAL</div>
@@ -691,20 +715,20 @@ function renderConcentrado(){
           </div>
         </div>
         <div class="ind-card">
-          <div class="ind-hdr"><div class="ind-dot" style="background:var(--rojo)"></div><span class="ind-ttl">NAS — UCI / UCIM (${uci.length} pac.)</span></div>
+          <div class="ind-hdr"><div class="ind-dot" style="background:var(--rojo)"></div><span class="ind-ttl">NAS — UCI / UCIM · ${nasUData.promActivos} pac. activos al ${fechaRefH}</span></div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 10px">
             ${NAS_NIVELES.map(nv=>`<div style="flex:1;min-width:80px;background:${NAS_BGS[nv]};border-radius:7px;padding:7px;text-align:center">
               <div style="font-size:9px;color:${NAS_COLORS[nv]};font-weight:700">${nv}</div>
               <div style="font-size:22px;font-weight:700;color:${NAS_COLORS[nv]}">${nasU[nv]}</div>
               <div style="font-size:9px;color:${NAS_COLORS[nv]}">${uci.length>0?Math.round(nasU[nv]/uci.length*100):0}%</div>
-              <div style="font-size:9px;color:${NAS_COLORS[nv]};margin-top:2px">${NAS_MINS[nv]} min</div>
+              <div style="font-size:9px;color:${NAS_COLORS[nv]};margin-top:2px">ratio 1:${({'Básico':4,'Moderado':3,'Alta complejidad':2,'Crítico':1})[nv]}</div>
             </div>`).join('')}
           </div>
           <div style="background:var(--rojo3);border-radius:8px;padding:10px;display:flex;justify-content:space-between;align-items:center">
             <div>
               <div style="font-size:10px;color:var(--rojo);font-weight:700">ENFERMERAS NECESARIAS / TURNO</div>
               <div style="font-size:28px;font-weight:700;color:var(--rojo)">${enfU}</div>
-              <div style="font-size:10px;color:var(--rojo)">Σ(pac×min_NAS) ÷ 480 min</div>
+              <div style="font-size:10px;color:var(--rojo)">Base: ${nasUData.promActivos} pac. activos al ${fechaRefH} · ratio por nivel NAS</div>
             </div>
             <div style="text-align:center">
               <div style="font-size:10px;color:var(--gris5);font-weight:700">PLANTILLA ACTUAL</div>
@@ -759,3 +783,4 @@ cargarDatos();
 </script>
 </body>
 </html>
+
