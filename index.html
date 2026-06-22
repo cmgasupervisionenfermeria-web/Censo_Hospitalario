@@ -734,20 +734,35 @@ function renderConcentrado(){
   const rotacion=Math.round(egresosHosp.length/CAMAS_HOSP*10)/10;
 
   function calcIntervalo(arr){
+    // Intervalo de sustitución: horas entre el egreso de un paciente y el ingreso
+    // del siguiente en la MISMA habitación el MISMO DÍA (máx 24 h de diferencia).
     const porHab={};
     arr.forEach(r=>{ const h=String(r.habitacion||''); if(!h) return; if(!porHab[h]) porHab[h]=[]; porHab[h].push(r); });
     const iv=[];
     Object.values(porHab).forEach(pacs=>{
-      pacs.sort((a,b)=>((a.fechaIngreso||a.fecha||'')+'T'+(a.horaIngreso||'00:00')).localeCompare((b.fechaIngreso||b.fecha||'')+'T'+(b.horaIngreso||'00:00')));
+      // Ordenar por fecha+hora de ingreso
+      pacs.sort((a,b)=>{
+        const ta=(a.fechaIngreso||a.fecha||'')+'T'+(a.horaIngreso||'00:00');
+        const tb=(b.fechaIngreso||b.fecha||'')+'T'+(b.horaIngreso||'00:00');
+        return ta.localeCompare(tb);
+      });
       for(let i=0;i<pacs.length-1;i++){
-        const act=pacs[i],sig=pacs[i+1];
+        const act=pacs[i], sig=pacs[i+1];
+        // Necesitamos fecha Y hora de egreso del actual
         if(!act.fechaEgreso||!act.horaEgreso) continue;
-        const fs=sig.fechaIngreso||sig.fecha; if(!fs) continue;
-        const hrs=(new Date(fs+'T'+(sig.horaIngreso||'00:00'))-new Date(act.fechaEgreso+'T'+act.horaEgreso))/(1000*60*60);
-        if(hrs>=0&&hrs<720) iv.push(hrs);
+        // Necesitamos fecha Y hora de ingreso del siguiente
+        const fsIng=sig.fechaIngreso||sig.fecha; if(!fsIng) continue;
+        // Solo contar si el nuevo ingreso ocurre en el MISMO DÍA que el egreso
+        if(fsIng !== act.fechaEgreso) continue;
+        const tsEgreso = new Date(act.fechaEgreso+'T'+act.horaEgreso);
+        const tsIngreso = new Date(fsIng+'T'+(sig.horaIngreso||'00:00'));
+        const hrs = (tsIngreso - tsEgreso) / (1000*60*60);
+        // Válido: ingreso posterior al egreso, en máx 24 h dentro del mismo día
+        if(hrs >= 0 && hrs <= 24) iv.push(hrs);
       }
     });
-    return iv.length?Math.round(iv.reduce((s,h)=>s+h,0)/iv.length*10)/10:null;
+    if(!iv.length) return null;
+    return Math.round(iv.reduce((s,h)=>s+h,0)/iv.length*10)/10;
   }
   const intervaloSust=calcIntervalo([...DB.hosp,...DB.uci]);
 
@@ -870,30 +885,137 @@ function renderConcentrado(){
       <div class="stat-card"><div class="stat-lbl">Infecciones</div><div class="stat-val" style="color:var(--morado)">${infTodos.length}</div><div class="stat-sub">H:${infHosp.length} · UCI:${infUCI.length}</div></div>
     </div>
 
-    <div class="ind-grid-2" style="margin-bottom:12px">
+    <!-- ══ COMPARATIVA INGRESOS / EGRESOS ══ -->
+    <div style="margin-bottom:12px">
       <div class="group-title">📈 Comparativa Ingresos / Egresos del mes</div>
-      <div class="ind-card">
-        <div class="ind-hdr"><div class="ind-dot" style="background:var(--az)"></div><span class="ind-ttl">Hospitalización — Ingresos vs Egresos</span></div>
-        <div style="display:flex;gap:16px;margin-top:8px;align-items:flex-end">
-          <div style="flex:1;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--az);margin-bottom:4px">INGRESOS</div><div style="font-size:32px;font-weight:700;color:var(--az)">${ingresosHosp.length}</div><div style="height:6px;background:var(--az);border-radius:3px;margin-top:6px;width:${ingresosHosp.length+egresosHosp.length>0?Math.round(ingresosHosp.length/(ingresosHosp.length+egresosHosp.length)*100):50}%"></div></div>
-          <div style="font-size:20px;color:var(--gris4);padding-bottom:14px">↔</div>
-          <div style="flex:1;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--verde);margin-bottom:4px">EGRESOS</div><div style="font-size:32px;font-weight:700;color:var(--verde)">${egresosHosp.length}</div><div style="height:6px;background:var(--verde);border-radius:3px;margin-top:6px;width:${ingresosHosp.length+egresosHosp.length>0?Math.round(egresosHosp.length/(ingresosHosp.length+egresosHosp.length)*100):50}%"></div></div>
+
+      <!-- Totales lado a lado -->
+      <div class="ind-grid-2" style="margin-bottom:10px">
+        <div class="ind-card">
+          <div class="ind-hdr"><div class="ind-dot" style="background:var(--az)"></div><span class="ind-ttl">Hospitalización — Total del mes</span></div>
+          <div style="display:flex;gap:16px;margin-top:8px;align-items:flex-end">
+            <div style="flex:1;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--az);margin-bottom:4px">INGRESOS</div><div style="font-size:36px;font-weight:700;color:var(--az)">${ingresosHosp.length}</div><div style="height:6px;background:var(--az);border-radius:3px;margin-top:6px;width:${ingresosHosp.length+egresosHosp.length>0?Math.round(ingresosHosp.length/(ingresosHosp.length+egresosHosp.length)*100):50}%"></div></div>
+            <div style="font-size:20px;color:var(--gris4);padding-bottom:14px">↔</div>
+            <div style="flex:1;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--verde);margin-bottom:4px">EGRESOS</div><div style="font-size:36px;font-weight:700;color:var(--verde)">${egresosHosp.length}</div><div style="height:6px;background:var(--verde);border-radius:3px;margin-top:6px;width:${ingresosHosp.length+egresosHosp.length>0?Math.round(egresosHosp.length/(ingresosHosp.length+egresosHosp.length)*100):50}%"></div></div>
+          </div>
+          <div style="margin-top:8px;padding:7px;background:${ingresosHosp.length>=egresosHosp.length?'var(--az3)':'var(--verde3)'};border-radius:7px;font-size:12px;color:${ingresosHosp.length>=egresosHosp.length?'var(--az2)':'var(--verde)'};font-weight:600;text-align:center">
+            ${ingresosHosp.length===egresosHosp.length?'Equilibrio perfecto':ingresosHosp.length>egresosHosp.length?`+${ingresosHosp.length-egresosHosp.length} más ingresos que egresos`:`+${egresosHosp.length-ingresosHosp.length} más egresos que ingresos`}
+          </div>
         </div>
-        <div style="margin-top:10px;padding:8px;background:${ingresosHosp.length>=egresosHosp.length?'var(--az3)':'var(--verde3)'};border-radius:7px;font-size:12px;color:${ingresosHosp.length>=egresosHosp.length?'var(--az2)':'var(--verde)'};font-weight:600;text-align:center">
-          ${ingresosHosp.length===egresosHosp.length?'Equilibrio perfecto':ingresosHosp.length>egresosHosp.length?`+${ingresosHosp.length-egresosHosp.length} más ingresos que egresos`:`+${egresosHosp.length-ingresosHosp.length} más egresos que ingresos`}
+        <div class="ind-card">
+          <div class="ind-hdr"><div class="ind-dot" style="background:var(--rojo)"></div><span class="ind-ttl">UCI / UCIM — Total del mes</span></div>
+          <div style="display:flex;gap:16px;margin-top:8px;align-items:flex-end">
+            <div style="flex:1;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--rojo);margin-bottom:4px">INGRESOS</div><div style="font-size:36px;font-weight:700;color:var(--rojo)">${ingresosUCI.length}</div><div style="height:6px;background:var(--rojo);border-radius:3px;margin-top:6px;width:${ingresosUCI.length+egresosUCI.length>0?Math.round(ingresosUCI.length/(ingresosUCI.length+egresosUCI.length)*100):50}%"></div></div>
+            <div style="font-size:20px;color:var(--gris4);padding-bottom:14px">↔</div>
+            <div style="flex:1;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--naranja);margin-bottom:4px">EGRESOS</div><div style="font-size:36px;font-weight:700;color:var(--naranja)">${egresosUCI.length}</div><div style="height:6px;background:var(--naranja);border-radius:3px;margin-top:6px;width:${ingresosUCI.length+egresosUCI.length>0?Math.round(egresosUCI.length/(ingresosUCI.length+egresosUCI.length)*100):50}%"></div></div>
+          </div>
+          <div style="margin-top:8px;padding:7px;background:${ingresosUCI.length>=egresosUCI.length?'var(--rojo3)':'var(--naranja3)'};border-radius:7px;font-size:12px;color:${ingresosUCI.length>=egresosUCI.length?'var(--rojo)':'var(--naranja)'};font-weight:600;text-align:center">
+            ${ingresosUCI.length===egresosUCI.length?'Equilibrio perfecto':ingresosUCI.length>egresosUCI.length?`+${ingresosUCI.length-egresosUCI.length} más ingresos que egresos`:`+${egresosUCI.length-ingresosUCI.length} más egresos que ingresos`}
+          </div>
         </div>
       </div>
-      <div class="ind-card">
-        <div class="ind-hdr"><div class="ind-dot" style="background:var(--rojo)"></div><span class="ind-ttl">UCI / UCIM — Ingresos vs Egresos</span></div>
-        <div style="display:flex;gap:16px;margin-top:8px;align-items:flex-end">
-          <div style="flex:1;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--rojo);margin-bottom:4px">INGRESOS</div><div style="font-size:32px;font-weight:700;color:var(--rojo)">${ingresosUCI.length}</div><div style="height:6px;background:var(--rojo);border-radius:3px;margin-top:6px;width:${ingresosUCI.length+egresosUCI.length>0?Math.round(ingresosUCI.length/(ingresosUCI.length+egresosUCI.length)*100):50}%"></div></div>
-          <div style="font-size:20px;color:var(--gris4);padding-bottom:14px">↔</div>
-          <div style="flex:1;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--naranja);margin-bottom:4px">EGRESOS</div><div style="font-size:32px;font-weight:700;color:var(--naranja)">${egresosUCI.length}</div><div style="height:6px;background:var(--naranja);border-radius:3px;margin-top:6px;width:${ingresosUCI.length+egresosUCI.length>0?Math.round(egresosUCI.length/(ingresosUCI.length+egresosUCI.length)*100):50}%"></div></div>
-        </div>
-        <div style="margin-top:10px;padding:8px;background:${ingresosUCI.length>=egresosUCI.length?'var(--rojo3)':'var(--naranja3)'};border-radius:7px;font-size:12px;color:${ingresosUCI.length>=egresosUCI.length?'var(--rojo)':'var(--naranja)'};font-weight:600;text-align:center">
-          ${ingresosUCI.length===egresosUCI.length?'Equilibrio perfecto':ingresosUCI.length>egresosUCI.length?`+${ingresosUCI.length-egresosUCI.length} más ingresos que egresos`:`+${egresosUCI.length-ingresosUCI.length} más egresos que ingresos`}
-        </div>
-      </div>
+
+      <!-- Por especialidad -->
+      ${(()=>{
+        // Collect all specialties that appear in ingresos or egresos
+        const espSetH = new Set([...ingresosHosp,...egresosHosp].map(r=>r.especialidadMedico||'Sin especialidad').filter(Boolean));
+        const espSetU = new Set([...ingresosUCI,...egresosUCI].map(r=>r.especialidadMedico||'Sin especialidad').filter(Boolean));
+        if(!espSetH.size && !espSetU.size) return '';
+
+        function barRow(label, ingN, egrN, colorIng, colorEgr){
+          const total = ingN + egrN;
+          const pctI = total>0 ? Math.round(ingN/total*100) : 0;
+          const pctE = total>0 ? Math.round(egrN/total*100) : 0;
+          const maxW = 100;
+          return `<div style="display:grid;grid-template-columns:1fr 36px 80px 36px;gap:6px;align-items:center;padding:4px 0;border-bottom:1px solid var(--gris1)">
+            <span style="font-size:11px;color:var(--gris6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${label}">${label}</span>
+            <span style="font-size:12px;font-weight:700;color:${colorIng};text-align:center">${ingN}</span>
+            <div style="position:relative;height:8px;background:var(--gris2);border-radius:4px;overflow:hidden">
+              <div style="position:absolute;left:0;top:0;height:100%;width:${pctI}%;background:${colorIng};border-radius:4px 0 0 4px"></div>
+              <div style="position:absolute;right:0;top:0;height:100%;width:${pctE}%;background:${colorEgr};border-radius:0 4px 4px 0"></div>
+            </div>
+            <span style="font-size:12px;font-weight:700;color:${colorEgr};text-align:center">${egrN}</span>
+          </div>`;
+        }
+
+        const espH = [...espSetH].sort();
+        const espU = [...espSetU].sort();
+
+        const htmlH = espH.map(esp=>{
+          const ing = ingresosHosp.filter(r=>(r.especialidadMedico||'Sin especialidad')===esp).length;
+          const egr = egresosHosp.filter(r=>(r.especialidadMedico||'Sin especialidad')===esp).length;
+          return barRow(esp, ing, egr, 'var(--az)', 'var(--verde)');
+        }).join('');
+
+        const htmlU = espU.map(esp=>{
+          const ing = ingresosUCI.filter(r=>(r.especialidadMedico||'Sin especialidad')===esp).length;
+          const egr = egresosUCI.filter(r=>(r.especialidadMedico||'Sin especialidad')===esp).length;
+          return barRow(esp, ing, egr, 'var(--rojo)', 'var(--naranja)');
+        }).join('');
+
+        return `<div class="ind-grid-2" style="margin-bottom:10px">
+          <div class="ind-card">
+            <div class="ind-hdr"><div class="ind-dot" style="background:var(--az)"></div><span class="ind-ttl">Hospitalización — por especialidad</span></div>
+            <div style="display:grid;grid-template-columns:1fr 36px 80px 36px;gap:6px;padding:4px 0 6px;border-bottom:2px solid var(--gris2);margin-bottom:2px">
+              <span style="font-size:9px;font-weight:700;color:var(--gris4);text-transform:uppercase">Especialidad</span>
+              <span style="font-size:9px;font-weight:700;color:var(--az);text-align:center">Ing.</span>
+              <span style="font-size:9px;font-weight:700;color:var(--gris4);text-align:center">Ing ← | → Egr</span>
+              <span style="font-size:9px;font-weight:700;color:var(--verde);text-align:center">Egr.</span>
+            </div>
+            ${htmlH || '<div style="font-size:12px;color:var(--gris4);padding:8px 0">Sin especialidades registradas</div>'}
+          </div>
+          <div class="ind-card">
+            <div class="ind-hdr"><div class="ind-dot" style="background:var(--rojo)"></div><span class="ind-ttl">UCI / UCIM — por especialidad</span></div>
+            <div style="display:grid;grid-template-columns:1fr 36px 80px 36px;gap:6px;padding:4px 0 6px;border-bottom:2px solid var(--gris2);margin-bottom:2px">
+              <span style="font-size:9px;font-weight:700;color:var(--gris4);text-transform:uppercase">Especialidad</span>
+              <span style="font-size:9px;font-weight:700;color:var(--rojo);text-align:center">Ing.</span>
+              <span style="font-size:9px;font-weight:700;color:var(--gris4);text-align:center">Ing ← | → Egr</span>
+              <span style="font-size:9px;font-weight:700;color:var(--naranja);text-align:center">Egr.</span>
+            </div>
+            ${htmlU || '<div style="font-size:12px;color:var(--gris4);padding:8px 0">Sin especialidades registradas</div>'}
+          </div>
+        </div>`;
+      })()}
+
+      <!-- Por destino de egreso -->
+      ${(()=>{
+        const DESTINOS = ['UCI','UCIM','Domicilio','Alta voluntaria'];
+        const DEST_COLORS = {'UCI':'var(--rojo)','UCIM':'var(--naranja)','Domicilio':'var(--verde)','Alta voluntaria':'var(--az2)'};
+        const DEST_BGS   = {'UCI':'var(--rojo3)','UCIM':'var(--naranja3)','Domicilio':'var(--verde3)','Alta voluntaria':'var(--az3)'};
+
+        const totalEgH = egresosHosp.length;
+        const totalEgU = egresosUCI.length;
+
+        // Only show if at least 1 egreso has a destination registered
+        const hayDestinoH = egresosHosp.some(r=>r.destinoEgreso);
+        const hayDestinoU = egresosUCI.some(r=>r.destinoEgreso);
+        if(!hayDestinoH && !hayDestinoU) return '';
+
+        function destCard(titulo, egresos, total, colorDot){
+          const sinDest = egresos.filter(r=>!r.destinoEgreso).length;
+          return `<div class="ind-card">
+            <div class="ind-hdr"><div class="ind-dot" style="background:${colorDot}"></div><span class="ind-ttl">${titulo} — destino de egreso</span></div>
+            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:10px 0">
+              ${DESTINOS.map(d=>{
+                const n = egresos.filter(r=>r.destinoEgreso===d).length;
+                const pct = total>0 ? Math.round(n/total*100) : 0;
+                return `<div style="background:${DEST_BGS[d]};border-radius:8px;padding:8px 10px">
+                  <div style="font-size:9px;font-weight:700;color:${DEST_COLORS[d]};text-transform:uppercase;margin-bottom:4px">${d}</div>
+                  <div style="font-size:24px;font-weight:700;color:${DEST_COLORS[d]}">${n}</div>
+                  <div style="font-size:10px;color:${DEST_COLORS[d]}">${pct}% del total</div>
+                  <div style="height:3px;background:${DEST_COLORS[d]};border-radius:2px;margin-top:6px;width:${pct}%;min-width:${n>0?4:0}px"></div>
+                </div>`;
+              }).join('')}
+            </div>
+            ${sinDest>0?`<div style="font-size:11px;color:var(--gris4);padding:4px 0;border-top:1px solid var(--gris2)">⚠ ${sinDest} egreso${sinDest!==1?'s':''} sin destino registrado</div>`:''}
+          </div>`;
+        }
+
+        return `<div class="ind-grid-2" style="margin-bottom:4px">
+          ${destCard('Hospitalización', egresosHosp, totalEgH, 'var(--az)')}
+          ${destCard('UCI / UCIM', egresosUCI, totalEgU, 'var(--rojo)')}
+        </div>`;
+      })()}
     </div>
 
     <div class="ind-grid-3" style="margin-bottom:12px">
