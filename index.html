@@ -154,6 +154,7 @@ tbody tr:last-child{border-bottom:none}
 <button class="nav-tab" onclick="showPage('endo',this)">🔬 Endoscopia / Urgencias</button>
 <button class="nav-tab" onclick="showPage('def',this)">📋 Defunciones</button>
 <button class="nav-tab" onclick="showPage('concentrado',this)">📊 Concentrado</button>
+<button class="nav-tab" onclick="showPage('buscar',this)">🔍 Buscador</button>
 </div>
 <div style="margin-left:auto;display:flex;align-items:center;gap:8px;padding-left:12px;flex-shrink:0">
 <span id="modeLabel" style="background:var(--amarillo3);color:var(--amarillo);padding:4px 10px;border-radius:99px;font-size:11px;font-weight:500">Solo lectura</span>
@@ -312,6 +313,51 @@ style="width:100%;padding:12px;font-size:20px;text-align:center;border:2px solid
 <div id="concentrado-body"></div>
 </div>
 
+<!-- BUSCADOR -->
+<div class="page" id="page-buscar">
+<div class="top-bar" style="flex-wrap:wrap;gap:10px">
+  <div style="display:flex;gap:8px;flex:1;min-width:260px">
+    <input id="srch-q" type="search" placeholder="Buscar por nombre o expediente…"
+      style="flex:1;padding:8px 12px;border:1px solid var(--gris3);border-radius:8px;font-family:inherit;font-size:14px;outline:none"
+      oninput="renderBuscar()" onfocus="this.style.borderColor='var(--az2)'" onblur="this.style.borderColor='var(--gris3)'">
+  </div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap">
+    <select id="srch-sec" onchange="renderBuscar()"
+      style="padding:7px 10px;font-size:12px;border-radius:7px;border:1px solid var(--gris3);font-family:inherit">
+      <option value="">Todas las secciones</option>
+      <option value="hosp">Hospitalización</option>
+      <option value="uci">UCI / UCIM</option>
+      <option value="endo">Endoscopia / Urgencias</option>
+      <option value="def">Defunciones</option>
+    </select>
+    <select id="srch-estado" onchange="renderBuscar()"
+      style="padding:7px 10px;font-size:12px;border-radius:7px;border:1px solid var(--gris3);font-family:inherit">
+      <option value="">Activos e histórico</option>
+      <option value="activo">Solo activos</option>
+      <option value="egresado">Solo egresados</option>
+    </select>
+  </div>
+  <span id="srch-count" style="font-size:12px;color:var(--gris4);white-space:nowrap;align-self:center"></span>
+</div>
+
+<div class="card">
+  <div class="pac-table-wrap">
+    <table>
+      <thead><tr>
+        <th>Sección</th><th>Hab.</th><th>Ingreso</th><th>Egreso</th><th>Nombre</th>
+        <th>Exp.</th><th>Sexo</th><th>Edad</th><th>Diagnóstico</th>
+        <th>Médico / Especialidad</th><th>NAS</th><th></th>
+      </tr></thead>
+      <tbody id="srch-tbody"></tbody>
+    </table>
+    <div class="empty" id="srch-empty" style="display:none">
+      <div class="empty-icon">🔍</div>
+      <p id="srch-empty-msg">Ingresa un nombre o número de expediente para buscar</p>
+    </div>
+  </div>
+</div>
+</div>
+
 <div class="modal-bg" id="modalPac" onclick="if(event.target===this)closeModal('modalPac')">
 <div class="modal"><div class="modal-handle"></div><div id="modalPacContent"></div></div>
 </div>
@@ -405,7 +451,7 @@ function inferirNAS(r){
 
 function nasChip(r){ const n=inferirNAS(r); return `<span style="background:${n.bg};color:${n.color};padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700;white-space:nowrap">${n.nivel}</span>`; }
 
-function showPage(id,btn){ document.querySelectorAll('.page').forEach(p=>p.classList.remove('active')); document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active')); document.getElementById('page-'+id).classList.add('active'); if(btn) btn.classList.add('active'); actualizarFechas(); if(id==='hosp') renderHosp(); if(id==='uci') renderUCI(); if(id==='endo') renderEndo(); if(id==='def') renderDef(); if(id==='concentrado') renderConcentrado(); }
+function showPage(id,btn){ document.querySelectorAll('.page').forEach(p=>p.classList.remove('active')); document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active')); document.getElementById('page-'+id).classList.add('active'); if(btn) btn.classList.add('active'); actualizarFechas(); if(id==='hosp') renderHosp(); if(id==='uci') renderUCI(); if(id==='endo') renderEndo(); if(id==='def') renderDef(); if(id==='concentrado') renderConcentrado(); if(id==='buscar') renderBuscar(); }
 function cambiarDia(d){ cur.setDate(cur.getDate()+d); actualizarFechas(); renderAll(); }
 function cambiarTurno(t,btn){ turno=t; document.querySelectorAll('.turno-tab').forEach(b=>b.classList.remove('active')); if(btn) btn.classList.add('active'); renderAll(); }
 function actualizarFechas(){ const l=fmt(cur); ['dateLabel','dateLabelUCI','dateLabelEndo','dateLabelDef'].forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent=l; }); }
@@ -1279,6 +1325,113 @@ function renderConcentrado(){
         </div>
       </div>
     </div>`;
+}
+
+function renderBuscar(){
+  const q   = (document.getElementById('srch-q')?.value||'').trim().toLowerCase();
+  const sec = document.getElementById('srch-sec')?.value||'';
+  const est = document.getElementById('srch-estado')?.value||'';
+  const tbody  = document.getElementById('srch-tbody');
+  const empty  = document.getElementById('srch-empty');
+  const emptyMsg = document.getElementById('srch-empty-msg');
+  const countEl = document.getElementById('srch-count');
+  if(!tbody) return;
+
+  // Collect records from all sections, tagging each with its section
+  const secciones = [
+    {key:'hosp', label:'Hospitalización', chip:'chip-hosp', icon:'🛏'},
+    {key:'uci',  label:'UCI / UCIM',      chip:'chip-uci',  icon:'🫀'},
+    {key:'endo', label:'Endoscopia',       chip:'chip-endo', icon:'🔬'},
+    {key:'def',  label:'Defunciones',      chip:'chip-def',  icon:'📋'},
+  ];
+
+  const hoy = dk(new Date());
+  let resultados = [];
+
+  secciones.forEach(s => {
+    if(sec && sec !== s.key) return;
+    (DB[s.key]||[]).forEach(r => {
+      // Estado filter
+      if(s.key==='hosp'||s.key==='uci'){
+        const activo = !r.fechaEgreso || r.fechaEgreso >= hoy;
+        if(est==='activo'   && !activo) return;
+        if(est==='egresado' &&  activo) return;
+      }
+      // Text filter — match nombre or expediente
+      if(q){
+        const nombre = (r.nombre||'').toLowerCase();
+        const exp    = (r.expediente||'').toLowerCase();
+        if(!nombre.includes(q) && !exp.includes(q)) return;
+      }
+      resultados.push({...r, _sec:s});
+    });
+  });
+
+  // Sort: active first, then by ingreso date desc
+  resultados.sort((a,b)=>{
+    const aActivo = !a.fechaEgreso || a.fechaEgreso>=hoy;
+    const bActivo = !b.fechaEgreso || b.fechaEgreso>=hoy;
+    if(aActivo!==bActivo) return aActivo?-1:1;
+    const fa = a.fechaIngreso||a.fecha||'';
+    const fb = b.fechaIngreso||b.fecha||'';
+    return fb.localeCompare(fa);
+  });
+
+  countEl.textContent = resultados.length
+    ? resultados.length + ' resultado' + (resultados.length!==1?'s':'')
+    : '';
+
+  if(!resultados.length){
+    tbody.innerHTML='';
+    empty.style.display='block';
+    emptyMsg.textContent = q
+      ? `Sin resultados para "${q}"`
+      : 'Ingresa un nombre o número de expediente para buscar';
+    return;
+  }
+  empty.style.display='none';
+
+  const fmtFecha = f => f
+    ? new Date(f+'T12:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'})
+    : '—';
+
+  tbody.innerHTML = resultados.map(r => {
+    const s = r._sec;
+    const activo = (s.key==='hosp'||s.key==='uci') ? (!r.fechaEgreso||r.fechaEgreso>=hoy) : null;
+    const rowBg  = activo===true  ? '' :
+                   activo===false ? 'background:var(--gris0);' : '';
+    const nas    = (s.key==='hosp'||s.key==='uci') ? nasChip(r) : '—';
+    const hab    = r.habitacion||r.sala||'—';
+    const diag   = r.diagnostico||r.diagIngreso||r.procedimiento||'—';
+    const medico = r.medico||'—';
+    const esp    = r.especialidadMedico||'';
+    const ingreso= fmtFecha(r.fechaIngreso||r.fecha);
+    const egreso = r.fechaEgreso ? fmtFecha(r.fechaEgreso) :
+                   activo===true ? '<span style="color:var(--verde);font-weight:600;font-size:11px">Activo</span>' : '—';
+    const editBtn = (s.key==='hosp'||s.key==='uci')
+      ? `<button class="btn btn-ghost btn-sm" onclick="requirePin(()=>abrirModalPaciente(${r.id},'${s.key}'))">✏</button>`
+      : s.key==='endo'
+        ? `<button class="btn btn-ghost btn-sm" onclick="requirePin(()=>abrirModalProcedimiento(${r.id}))">✏</button>`
+        : s.key==='def'
+          ? `<button class="btn btn-ghost btn-sm" onclick="requirePin(()=>abrirModalDefuncion(${r.id}))">✏</button>`
+          : '';
+
+    return `<tr style="${rowBg}">
+      <td><span class="section-chip ${s.chip}" style="font-size:10px">${s.icon} ${s.label}</span></td>
+      <td><b>${hab}</b></td>
+      <td style="font-size:11px;white-space:nowrap">${ingreso}</td>
+      <td style="font-size:11px;white-space:nowrap">${egreso}</td>
+      <td style="font-weight:600;color:var(--az2);max-width:160px">${r.nombre||'—'}<br>
+          <span style="font-size:10px;font-weight:400;color:var(--gris4)">${r.sexo||''} · ${r.edad||''}a</span></td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px">${r.expediente||'—'}</td>
+      <td><span class="badge ${r.sexo==='M'?'b-m':'b-f'}">${r.sexo||'—'}</span></td>
+      <td style="text-align:center">${r.edad||'—'}</td>
+      <td style="font-size:11px;color:var(--gris5);max-width:170px">${diag}</td>
+      <td style="font-size:11px">${medico}${esp?`<br><span style="font-size:10px;color:var(--gris4)">${esp}</span>`:''}</td>
+      <td>${nas}</td>
+      <td>${editBtn}</td>
+    </tr>`;
+  }).join('');
 }
 
 actualizarFechas();
