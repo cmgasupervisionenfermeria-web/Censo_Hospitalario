@@ -466,7 +466,19 @@ async function apiCall(payload){ guardarLocal(); if(!GAS_CONFIGURADO) return{ok:
 
 async function cargarDatos(){ const hayLocal=cargarLocal(); if(hayLocal){ recalcNid(); actualizarFechas(); renderAll(); } if(!GAS_CONFIGURADO){ if(!hayLocal){ actualizarFechas(); renderAll(); } return; } showLoader('🔄 Sincronizando con Google Sheets…'); try{ const r=await fetch(GAS_URL+'?action=getAll'); const data=await r.json(); if(data&&typeof data==='object'){ ['hosp','uci','endo','def'].forEach(s=>{ if(Array.isArray(data[s])){ DB[s]=data[s].map(rec=>{ const camposFecha=['fecha','fechaIngreso','fechaNac','fechaProcedimiento','fechaEgreso','accesoIV1Fecha','accesoIV1Retiro','accesoIV2Fecha','accesoIV2Retiro','sondaFoleyFecha','sondaFoleyRetiro','sngFecha','sngRetiro','drenaje1Fecha','drenaje1Retiro','drenaje2Fecha','drenaje2Retiro','soporteRespFecha','soporteRespRetiro','ventMecFecha','ventMecRetiro','caídaFecha','fechaDefuncion','fechaIngresoTanatorio']; const camposHora=['horaIngreso','horaEgreso','horaDefuncion','horaIngresoTanatorio','horaEgresoTanatorio']; camposFecha.forEach(c=>{ if(rec[c]&&typeof rec[c]==='string'&&rec[c].includes('T')){ rec[c]=rec[c].split('T')[0]; } }); camposHora.forEach(c=>{ if(rec[c]&&typeof rec[c]==='string'&&rec[c].includes('T')){ const d=new Date(rec[c]); rec[c]=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); } }); return rec; }); } }); recalcNid(); guardarLocal(); } }catch(e){ console.error('Error cargando GAS:',e); if(!hayLocal){ actualizarFechas(); renderAll(); } } hideLoader(); actualizarFechas(); renderAll(); }
 
-function filtrarActivos(arr){ const hoy=dk(cur); return arr.filter(r=>{ const ingreso=r.fechaIngreso||r.fecha||''; if(!ingreso) return false; if(ingreso>hoy) return false; if(r.fechaEgreso&&r.fechaEgreso<hoy) return false; return true; }).sort((a,b)=>(a.habitacion||'').toString().localeCompare((b.habitacion||'').toString(),undefined,{numeric:true})); }
+function esFecha(v){ return typeof v==='string' && /^\d{4}-\d{2}-\d{2}$/.test(v); }
+
+function filtrarActivos(arr){
+  const hoy=dk(cur);
+  return arr.filter(r=>{
+    const ingreso=r.fechaIngreso||r.fecha||'';
+    if(!ingreso) return false;
+    if(!esFecha(ingreso)) return false;
+    if(ingreso>hoy) return false;
+    if(esFecha(r.fechaEgreso) && r.fechaEgreso<hoy) return false;
+    return true;
+  }).sort((a,b)=>(a.habitacion||'').toString().localeCompare((b.habitacion||'').toString(),undefined,{numeric:true}));
+} if(!ingreso) return false; if(ingreso>hoy) return false; if(r.fechaEgreso&&r.fechaEgreso<hoy) return false; return true; }).sort((a,b)=>(a.habitacion||'').toString().localeCompare((b.habitacion||'').toString(),undefined,{numeric:true})); }
 function filtrarDia(arr){ return arr.filter(r=>r.fecha===dk(cur)); }
 function diasEstancia(fechaIng){ if(!fechaIng) return 0; const fi=new Date(fechaIng+'T12:00'); return Math.max(0,Math.round((cur-fi)/(1000*60*60*24))); }
 
