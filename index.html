@@ -478,7 +478,6 @@ function filtrarActivos(arr){
     if(esFecha(r.fechaEgreso) && r.fechaEgreso<hoy) return false;
     return true;
   }).sort((a,b)=>(a.habitacion||'').toString().localeCompare((b.habitacion||'').toString(),undefined,{numeric:true}));
-} if(!ingreso) return false; if(ingreso>hoy) return false; if(r.fechaEgreso&&r.fechaEgreso<hoy) return false; return true; }).sort((a,b)=>(a.habitacion||'').toString().localeCompare((b.habitacion||'').toString(),undefined,{numeric:true})); }
 function filtrarDia(arr){ return arr.filter(r=>r.fecha===dk(cur)); }
 function diasEstancia(fechaIng){ if(!fechaIng) return 0; const fi=new Date(fechaIng+'T12:00'); return Math.max(0,Math.round((cur-fi)/(1000*60*60*24))); }
 
