@@ -153,6 +153,7 @@ tbody tr:last-child{border-bottom:none}
 <div style="margin-left:auto;display:flex;align-items:center;gap:8px;padding-left:12px;flex-shrink:0">
 <span id="modeLabel" style="background:var(--amarillo3);color:var(--amarillo);padding:4px 10px;border-radius:99px;font-size:11px;font-weight:500">Solo lectura</span>
 <button id="lockBtn" onclick="toggleLock()" style="background:rgba(255,255,255,.15);border:none;color:#fff;padding:5px 10px;border-radius:6px;cursor:pointer;font-size:12px;font-family:inherit">🔒 PIN</button>
+<button onclick="limpiarCache()" title="Limpiar caché y recargar desde Sheets" style="background:rgba(255,255,255,.1);border:none;color:rgba(255,255,255,.7);padding:5px 10px;border-radius:6px;cursor:pointer;font-size:11px;font-family:inherit">↺ Sync</button>
 </div>
 </nav>
 
@@ -1156,6 +1157,15 @@ function renderConcentrado(){
         </div>
       </div>
     </div>`;
+}
+
+function limpiarCache(){
+  if(!confirm('¿Borrar caché local y recargar datos de Google Sheets?')) return;
+  localStorage.removeItem('censo_db_v2');
+  DB={hosp:[],uci:[],endo:[],def:[]};
+  nid=1;
+  toast('🔄 Caché borrado — recargando…');
+  cargarDatos();
 }
 
 actualizarFechas();
