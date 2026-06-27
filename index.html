@@ -429,9 +429,12 @@ function nasChip(r){ const n=inferirNAS(r); return `<span style="background:${n.
 function showPage(id,btn){ document.querySelectorAll('.page').forEach(p=>p.classList.remove('active')); document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active')); document.getElementById('page-'+id).classList.add('active'); if(btn) btn.classList.add('active'); actualizarFechas(); if(id==='hosp') renderHosp(); if(id==='uci') renderUCI(); if(id==='endo') renderEndo(); if(id==='def') renderDef(); if(id==='concentrado') renderConcentrado(); if(id==='buscar') renderBuscar(); }
 function cambiarDia(d){
   cur.setDate(cur.getDate()+d);
-  const panel=document.getElementById('det-panel-flotante');
-  if(panel){ panel.style.display='none'; panel.dataset.openId=''; }
-  document.querySelectorAll('tr.sel-row').forEach(function(r){ r.classList.remove('sel-row'); r.style.background=''; });
+  // Limpiar fila de detalle inline y selección
+  const vf=document.getElementById('det-inline-row');
+  if(vf) vf.parentNode.removeChild(vf);
+  document.querySelectorAll('tr.sel-row').forEach(function(r){
+    r.classList.remove('sel-row'); r.style.background=''; r.dataset.open='';
+  });
   actualizarFechas(); renderAll();
 }
 function actualizarFechas(){ const l=fmt(cur); ['dateLabel','dateLabelUCI','dateLabelEndo','dateLabelDef'].forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent=l; }); }
@@ -555,36 +558,43 @@ function panelDetalle(r, seccion){
 function toggleExpand(el){
   const rowId=Number(el.dataset.id);
   const seccion=el.dataset.sec;
+
   // Limpiar selección anterior
-  document.querySelectorAll('tr[data-id].sel-row').forEach(function(r){ r.classList.remove('sel-row'); r.style.background=''; });
-  const panel=document.getElementById('det-panel-flotante');
-  if(panel && panel.dataset.openId===String(rowId)){
-    // Click en la misma fila: cerrar
-    panel.style.display='none';
-    panel.dataset.openId='';
-    return;
-  }
+  document.querySelectorAll('tr[data-id].sel-row').forEach(function(r){
+    r.classList.remove('sel-row'); r.style.background='';
+  });
+
+  // Quitar fila de detalle inline anterior (si existe)
+  const viejaFila=document.getElementById('det-inline-row');
+  if(viejaFila) viejaFila.parentNode.removeChild(viejaFila);
+
+  // Si se hizo click en la misma fila → cerrar
+  const abierto=el.dataset.open==='1';
+  if(abierto){ el.dataset.open=''; return; }
+
+  // Marcar fila como seleccionada
   el.classList.add('sel-row');
   el.style.background='var(--az3)';
+  el.dataset.open='1';
+
   const rec=DB[seccion].find(function(r){ return r.id===rowId; });
   if(!rec) return;
-  let p=document.getElementById('det-panel-flotante');
-  if(!p){
-    p=document.createElement('div');
-    p.id='det-panel-flotante';
-    p.style.cssText='margin-top:8px;border-radius:10px;border:2px solid var(--az4);background:var(--gris0);overflow:hidden';
-    // Insertar después del card de hosp/uci
-    const page=document.getElementById('page-'+seccion);
-    if(page) page.appendChild(p);
-  } else {
-    // Mover al page correcto
-    const page=document.getElementById('page-'+seccion);
-    if(page && p.parentElement!==page) page.appendChild(p);
-  }
-  try{ p.innerHTML=panelDetalle(rec,seccion); }catch(e){ p.innerHTML='<div style="padding:16px;color:var(--gris4)">No se pudo cargar el detalle.</div>'; }
-  p.style.display='block';
-  p.dataset.openId=String(rowId);
-  p.scrollIntoView({behavior:'smooth',block:'nearest'});
+
+  // Crear fila TR inline que aparece JUSTO DEBAJO de la fila seleccionada
+  const colspan=seccion==='uci'?10:10;
+  const detTr=document.createElement('tr');
+  detTr.id='det-inline-row';
+  detTr.style.cssText='background:var(--gris0)';
+  const detTd=document.createElement('td');
+  detTd.colSpan=colspan;
+  detTd.style.cssText='padding:0;border-top:2px solid var(--az4)';
+  try{ detTd.innerHTML=panelDetalle(rec,seccion); }
+  catch(e){ detTd.innerHTML='<div style="padding:16px;color:var(--gris4)">Error al cargar detalle.</div>'; }
+  detTr.appendChild(detTd);
+
+  // Insertar después de la fila seleccionada
+  el.parentNode.insertBefore(detTr, el.nextSibling);
+  detTr.scrollIntoView({behavior:'smooth', block:'nearest'});
 }
 
 function diasDispositivo(idIns, idRet, idResult){
