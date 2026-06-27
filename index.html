@@ -541,8 +541,10 @@ function panelDetalle(r, seccion){
   </div>`;
 }
 
-function toggleExpand(rowId, seccion){
-  const row=document.getElementById('row-'+rowId);
+function toggleExpand(el){
+  const rowId=Number(el.dataset.id);
+  const seccion=el.dataset.sec;
+  const row=el;
   const exp=document.getElementById('exp-'+rowId);
   if(!row||!exp) return;
   const isOpen=exp.classList.contains('open');
@@ -551,7 +553,6 @@ function toggleExpand(rowId, seccion){
   if(!isOpen){
     exp.classList.add('open');
     row.classList.add('expanded');
-    // Cargar detalle dinámicamente la primera vez
     const det=document.getElementById('det-'+rowId);
     if(det && !det.dataset.loaded){
       const rec=DB[seccion].find(r=>r.id===rowId);
@@ -592,17 +593,17 @@ function renderHosp(){
     if(r['caídaEvento']==='Sí') alertas.push('<span style="color:var(--rojo);font-size:10px;font-weight:700">Caída</span>');
     if(r['lppEvento']==='Sí') alertas.push('<span style="color:var(--rojo);font-size:10px;font-weight:700">LPP</span>');
     if(r.infeccionEvento==='Sí') alertas.push('<span style="color:var(--rojo);font-size:10px;font-weight:700">Infec.</span>');
-    return '<tr id="row-'+r.id+'" class="row-expandable" style="'+rowStyle+'" onclick="toggleExpand('+r.id+','hosp')">'
+    return '<tr id="row-'+r.id+'" class="row-expandable" style="'+rowStyle+'" data-id="'+r.id+'" data-sec="hosp" onclick="toggleExpand(this)">'
       +'<td><b>'+(r.habitacion||'—')+'</b></td>'
       +'<td style="font-size:11px;white-space:nowrap">'+(r.fechaIngreso||'—')+'<br><span style="color:var(--gris4)">'+(r.horaIngreso||'')+'</span></td>'
       +'<td style="text-align:center;font-weight:600;color:var(--az2)">'+diasEstancia(r.fechaIngreso)+'</td>'
       +'<td style="font-weight:600;color:var(--az2)">'+(r.nombre||'—')+'<br><span style="font-size:10px;font-weight:400;color:var(--gris4)">'+(r.sexo||'')+' · '+(r.edad||'')+'a</span></td>'
-      +'<td style="font-family:'DM Mono',monospace;font-size:11px">'+(r.expediente||'—')+'</td>'
+      +'<td style="font-family:monospace;font-size:11px">'+(r.expediente||'—')+'</td>'
       +'<td style="font-size:11px;color:var(--gris5);max-width:180px">'+(r.diagnostico||'—')+(r.procedimiento?'<br><span style="color:var(--az2);font-style:italic">'+r.procedimiento+'</span>':'')+'</td>'
       +'<td style="font-size:11px">'+(r.medico||'—')+(r.especialidadMedico?'<br><span style="font-size:10px;color:var(--gris4)">'+r.especialidadMedico+'</span>':'')+'</td>'
       +'<td>'+nasChip(r)+'</td>'
       +'<td style="font-size:11px">'+(alertas.join(' ')||'—')+'</td>'
-      +'<td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();requirePin(()=>abrirModalPaciente('+r.id+','hosp'))">✏</button></td>'
+      +'<td><button class="btn btn-ghost btn-sm" data-id="'+r.id+'" data-sec="hosp" onclick="event.stopPropagation();editarPaciente(this)">✏</button></td>'
       +'</tr>'
       +'<tr id="exp-'+r.id+'" class="exp-row"><td colspan="10"><div id="det-'+r.id+'"></div></td></tr>';
   }).join('');
@@ -624,17 +625,17 @@ function renderUCI(){
     if(r['lppEvento']==='Sí') alertas.push('<span style="color:var(--rojo);font-size:10px;font-weight:700">LPP</span>');
     if(r.infeccionEvento==='Sí') alertas.push('<span style="color:var(--rojo);font-size:10px;font-weight:700">Infec.</span>');
     if(r.ventMec==='Sí') alertas.push('<span style="color:var(--az);font-size:10px;font-weight:700">VM</span>');
-    return '<tr id="row-'+r.id+'" class="row-expandable" style="'+rowStyle+'" onclick="toggleExpand('+r.id+','uci')">'
+    return '<tr id="row-'+r.id+'" class="row-expandable" style="'+rowStyle+'" data-id="'+r.id+'" data-sec="uci" onclick="toggleExpand(this)">'
       +'<td><b>'+(r.habitacion||'—')+'</b></td>'
       +'<td style="font-size:11px;white-space:nowrap">'+(r.fechaIngreso||'—')+'<br><span style="color:var(--gris4)">'+(r.horaIngreso||'')+'</span></td>'
       +'<td style="text-align:center;font-weight:600;color:var(--rojo)">'+diasEstancia(r.fechaIngreso)+'</td>'
       +'<td style="font-weight:600;color:var(--az2)">'+(r.nombre||'—')+'<br><span style="font-size:10px;font-weight:400;color:var(--gris4)">'+(r.sexo||'')+' · '+(r.edad||'')+'a</span></td>'
-      +'<td style="font-family:'DM Mono',monospace;font-size:11px">'+(r.expediente||'—')+'</td>'
+      +'<td style="font-family:monospace;font-size:11px">'+(r.expediente||'—')+'</td>'
       +'<td style="font-size:11px;color:var(--gris5);max-width:180px">'+(r.diagnostico||'—')+(r.procedimiento?'<br><span style="color:var(--az2);font-style:italic">'+r.procedimiento+'</span>':'')+'</td>'
       +'<td style="font-size:11px">'+(r.medico||'—')+(r.especialidadMedico?'<br><span style="font-size:10px;color:var(--gris4)">'+r.especialidadMedico+'</span>':'')+'</td>'
       +'<td>'+nasChip(r)+'</td>'
       +'<td style="font-size:11px">'+(alertas.join(' ')||'—')+'</td>'
-      +'<td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();requirePin(()=>abrirModalPaciente('+r.id+','uci'))">✏</button></td>'
+      +'<td><button class="btn btn-ghost btn-sm" data-id="'+r.id+'" data-sec="uci" onclick="event.stopPropagation();editarPaciente(this)">✏</button></td>'
       +'</tr>'
       +'<tr id="exp-'+r.id+'" class="exp-row"><td colspan="10"><div id="det-'+r.id+'"></div></td></tr>';
   }).join('');
@@ -1169,6 +1170,12 @@ function renderConcentrado(){
     </div>`;
 }
 
+function editarPaciente(btn){
+  const id=Number(btn.dataset.id);
+  const sec=btn.dataset.sec;
+  requirePin(()=>abrirModalPaciente(id,sec));
+}
+
 function limpiarCache(){
   if(!confirm('¿Borrar caché local y recargar datos de Google Sheets?')) return;
   localStorage.removeItem('censo_db_v2');
@@ -1183,3 +1190,4 @@ cargarDatos();
 </script>
 </body>
 </html>
+
