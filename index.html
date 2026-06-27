@@ -558,21 +558,28 @@ function panelDetalle(r, seccion){
 function toggleExpand(el){
   const rowId=Number(el.dataset.id);
   const seccion=el.dataset.sec;
+  const hoy=dk(cur);
 
-  // Limpiar selección anterior
-  document.querySelectorAll('tr[data-id].sel-row').forEach(function(r){
-    r.classList.remove('sel-row'); r.style.background='';
-  });
+  // Helper: restaurar color original de una fila (verde si egresa hoy, vacío si no)
+  function restaurarFila(r){
+    r.classList.remove('sel-row');
+    const rid=Number(r.dataset.id);
+    const rec2=DB[r.dataset.sec]&&DB[r.dataset.sec].find(function(x){ return x.id===rid; });
+    r.style.background=(rec2&&rec2.fechaEgreso===hoy)?'#BBF7D0':'';
+  }
+
+  // Limpiar selección anterior restaurando su color original
+  document.querySelectorAll('tr[data-id].sel-row').forEach(restaurarFila);
 
   // Quitar fila de detalle inline anterior (si existe)
   const viejaFila=document.getElementById('det-inline-row');
   if(viejaFila) viejaFila.parentNode.removeChild(viejaFila);
 
-  // Si se hizo click en la misma fila → cerrar
+  // Si se hizo click en la misma fila → cerrar (ya se restauró el color arriba)
   const abierto=el.dataset.open==='1';
   if(abierto){ el.dataset.open=''; return; }
 
-  // Marcar fila como seleccionada
+  // Marcar fila como seleccionada (azul claro)
   el.classList.add('sel-row');
   el.style.background='var(--az3)';
   el.dataset.open='1';
@@ -580,19 +587,16 @@ function toggleExpand(el){
   const rec=DB[seccion].find(function(r){ return r.id===rowId; });
   if(!rec) return;
 
-  // Crear fila TR inline que aparece JUSTO DEBAJO de la fila seleccionada
-  const colspan=seccion==='uci'?10:10;
+  // Crear fila TR inline justo debajo de la fila seleccionada
   const detTr=document.createElement('tr');
   detTr.id='det-inline-row';
   detTr.style.cssText='background:var(--gris0)';
   const detTd=document.createElement('td');
-  detTd.colSpan=colspan;
+  detTd.colSpan=10;
   detTd.style.cssText='padding:0;border-top:2px solid var(--az4)';
   try{ detTd.innerHTML=panelDetalle(rec,seccion); }
   catch(e){ detTd.innerHTML='<div style="padding:16px;color:var(--gris4)">Error al cargar detalle.</div>'; }
   detTr.appendChild(detTd);
-
-  // Insertar después de la fila seleccionada
   el.parentNode.insertBefore(detTr, el.nextSibling);
   detTr.scrollIntoView({behavior:'smooth', block:'nearest'});
 }
@@ -625,7 +629,7 @@ function renderHosp(){
   data.forEach(function(r){
     const egresaHoy=r.fechaEgreso===hoy;
     const tr=document.createElement('tr');
-    tr.style.cssText=egresaHoy?'background:#F0FDF4;cursor:pointer':'cursor:pointer';
+    tr.style.cssText=egresaHoy?'background:#BBF7D0;cursor:pointer':'cursor:pointer';
     tr.dataset.id=String(r.id);
     tr.dataset.sec='hosp';
     tr.onclick=function(){ toggleExpand(this); };
@@ -666,7 +670,7 @@ function renderUCI(){
   data.forEach(function(r){
     const egresaHoy=r.fechaEgreso===hoy;
     const tr=document.createElement('tr');
-    tr.style.cssText=egresaHoy?'background:#F0FDF4;cursor:pointer':'cursor:pointer';
+    tr.style.cssText=egresaHoy?'background:#BBF7D0;cursor:pointer':'cursor:pointer';
     tr.dataset.id=String(r.id);
     tr.dataset.sec='uci';
     tr.onclick=function(){ toggleExpand(this); };
