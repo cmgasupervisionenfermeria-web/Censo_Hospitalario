@@ -438,7 +438,7 @@ function recalcNid(){ const allIds=[...DB.hosp,...DB.uci,...DB.endo,...DB.def].m
 
 async function apiCall(payload){ guardarLocal(); if(!GAS_CONFIGURADO) return{ok:true}; try{ const params=new URLSearchParams(); params.append('action',payload.action); params.append('section',payload.section||''); if(payload.record) params.append('record',JSON.stringify(payload.record)); if(payload.id!==undefined) params.append('id',payload.id); const r=await fetch(GAS_URL+'?'+params.toString()); const data=await r.json(); if(data.ok) guardarLocal(); return data; }catch(e){ console.error('Error GAS:',e); toast('⚠ Sin conexión — guardado localmente','error'); return{ok:false}; } }
 
-async function cargarDatos(){ const hayLocal=cargarLocal(); if(hayLocal){ recalcNid(); actualizarFechas(); renderAll(); } if(!GAS_CONFIGURADO){ if(!hayLocal){ actualizarFechas(); renderAll(); } return; } showLoader('🔄 Sincronizando con Google Sheets…'); try{ const r=await fetch(GAS_URL+'?action=getAll'); const data=await r.json(); if(data&&typeof data==='object'){ ['hosp','uci','endo','def'].forEach(s=>{ if(Array.isArray(data[s])){ DB[s]=data[s].map(rec=>{ const camposFecha=['fecha','fechaIngreso','fechaNac','fechaProcedimiento','fechaEgreso','accesoIV1Fecha','accesoIV1Retiro','accesoIV2Fecha','accesoIV2Retiro','sondaFoleyFecha','sondaFoleyRetiro','sngFecha','sngRetiro','drenaje1Fecha','drenaje1Retiro','drenaje2Fecha','drenaje2Retiro','soporteRespFecha','soporteRespRetiro','ventMecFecha','ventMecRetiro','caídaFecha','infeccionFecha','fechaDefuncion','fechaIngresoTanatorio']; const camposHora=['horaIngreso','horaEgreso','horaDefuncion','horaIngresoTanatorio','horaEgresoTanatorio']; camposFecha.forEach(c=>{ if(rec[c]&&typeof rec[c]==='string'&&rec[c].includes('T')){ rec[c]=rec[c].split('T')[0]; } }); camposHora.forEach(c=>{ if(rec[c]&&typeof rec[c]==='string'&&rec[c].includes('T')){ const d=new Date(rec[c]); rec[c]=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); } }); return rec; }); } }); recalcNid(); guardarLocal(); } }catch(e){ console.error('Error cargando GAS:',e); if(!hayLocal){ actualizarFechas(); renderAll(); } } hideLoader(); actualizarFechas(); renderAll(); }
+async function cargarDatos(){ const hayLocal=cargarLocal(); if(hayLocal){ recalcNid(); actualizarFechas(); renderAll(); } if(!GAS_CONFIGURADO){ if(!hayLocal){ actualizarFechas(); renderAll(); } return; } showLoader('🔄 Sincronizando con Google Sheets…'); try{ const r=await fetch(GAS_URL+'?action=getAll'); const data=await r.json(); if(data&&typeof data==='object'){ ['hosp','uci','endo','def'].forEach(s=>{ if(Array.isArray(data[s])){ DB[s]=data[s].map(rec=>{ const camposFecha=['fecha','fechaIngreso','fechaNac','fechaProcedimiento','fechaEgreso','accesoIV1Fecha','accesoIV1Retiro','accesoIV2Fecha','accesoIV2Retiro','sondaFoleyFecha','sondaFoleyRetiro','sngFecha','sngRetiro','drenaje1Fecha','drenaje1Retiro','drenaje2Fecha','drenaje2Retiro','soporteRespFecha','soporteRespRetiro','ventMecFecha','ventMecRetiro','caídaFecha','infeccionFecha','fechaDefuncion','fechaIngresoTanatorio']; const camposHora=['horaIngreso','horaEgreso','horaDefuncion','horaIngresoTanatorio','horaEgresoTanatorio']; camposFecha.forEach(c=>{ if(rec[c]&&typeof rec[c]==='string'&&rec[c].includes('T')){ rec[c]=rec[c].split('T')[0]; } }); camposHora.forEach(c=>{ if(rec[c]&&typeof rec[c]==='string'&&rec[c].includes('T')){ const d=new Date(rec[c]); rec[c]=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); } }); return rec; }); } }); recalcNid(); guardarLocal(); } }catch(e){ console.error('Error cargando GAS:',e); if(!hayLocal){ actualizarFechas(); renderAll(); } } hideLoader(); actualizarFechas(); Promise.resolve().then(function(){ renderAll(); }); }
 
 function esFecha(v){ return typeof v==='string' && /^\d{4}-\d{2}-\d{2}$/.test(v); }
 
@@ -598,34 +598,39 @@ function renderHosp(){
   const empty=document.getElementById('hosp-empty');
   const hoy=dk(cur);
   document.getElementById('hosp-count').textContent=data.length+' paciente'+(data.length!==1?'s':'')+' activo'+(data.length!==1?'s':'');
-  if(!data.length){tbody.innerHTML='';empty.style.display='block';return;}
+  while(tbody.firstChild) tbody.removeChild(tbody.firstChild);
+  if(!data.length){ empty.style.display='block'; return; }
   empty.style.display='none';
-  tbody.innerHTML=data.map(r=>{
+  data.forEach(function(r){
     const egresaHoy=r.fechaEgreso===hoy;
-    const rowStyle=egresaHoy?'background:#F0FDF4;':'';
+    const tr=document.createElement('tr');
+    tr.style.cssText=egresaHoy?'background:#F0FDF4;cursor:pointer':'cursor:pointer';
+    tr.dataset.id=String(r.id);
+    tr.dataset.sec='hosp';
+    tr.onclick=function(){ toggleExpand(this); };
     const alertas=[];
     if(r['caídaEvento']==='Sí') alertas.push('<span style="color:var(--rojo);font-size:10px;font-weight:700">Caída</span>');
     if(r['lppEvento']==='Sí') alertas.push('<span style="color:var(--rojo);font-size:10px;font-weight:700">LPP</span>');
     if(r.infeccionEvento==='Sí') alertas.push('<span style="color:var(--rojo);font-size:10px;font-weight:700">Infec.</span>');
     const al=alertas.join(' ')||'—';
-    const nas=nasChip(r);
     const dx=(r.diagnostico||'—')+(r.procedimiento?'<br><em style="color:var(--az2)">'+r.procedimiento+'</em>':'');
     const med=(r.medico||'—')+(r.especialidadMedico?'<br><small style="color:var(--gris4)">'+r.especialidadMedico+'</small>':'');
-    const dias=diasEstancia(r.fechaIngreso);
-    const tr='<tr style="'+rowStyle+'cursor:pointer" data-id="'+r.id+'" data-sec="hosp" onclick="toggleExpand(this)">'
-      +'<td><b>'+(r.habitacion||'—')+'</b></td>'
+    tr.innerHTML='<td><b>'+(r.habitacion||'—')+'</b></td>'
       +'<td style="font-size:11px;white-space:nowrap">'+(r.fechaIngreso||'—')+'<br><span style="color:var(--gris4)">'+(r.horaIngreso||'')+'</span></td>'
-      +'<td style="text-align:center;font-weight:600;color:var(--az2)">'+dias+'</td>'
+      +'<td style="text-align:center;font-weight:600;color:var(--az2)">'+diasEstancia(r.fechaIngreso)+'</td>'
       +'<td style="font-weight:600;color:var(--az2)">'+(r.nombre||'—')+'<br><span style="font-size:10px;font-weight:400;color:var(--gris4)">'+(r.sexo||'')+' · '+(r.edad||'')+'a</span></td>'
       +'<td style="font-size:11px">'+(r.expediente||'—')+'</td>'
       +'<td style="font-size:11px;color:var(--gris5);max-width:180px">'+dx+'</td>'
       +'<td style="font-size:11px">'+med+'</td>'
-      +'<td>'+nas+'</td>'
+      +'<td>'+nasChip(r)+'</td>'
       +'<td style="font-size:11px">'+al+'</td>'
-      +'<td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();requirePin(function(){abrirModalPaciente('+r.id+',\'hosp\')})">✏</button></td>'
-      +'</tr>';
-    return tr;
-  }).join('');
+      +'<td></td>';
+    const btnH=document.createElement('button');
+    btnH.className='btn btn-ghost btn-sm'; btnH.textContent='✏';
+    (function(rid){ btnH.onclick=function(e){ e.stopPropagation(); requirePin(function(){ abrirModalPaciente(rid,'hosp'); }); }; })(r.id);
+    tr.lastElementChild.appendChild(btnH);
+    tbody.appendChild(tr);
+  });
 }
 
 function renderUCI(){
@@ -634,35 +639,40 @@ function renderUCI(){
   const empty=document.getElementById('uci-empty');
   const hoy=dk(cur);
   document.getElementById('uci-count').textContent=data.length+' paciente'+(data.length!==1?'s':'')+' activo'+(data.length!==1?'s':'');
-  if(!data.length){tbody.innerHTML='';empty.style.display='block';return;}
+  while(tbody.firstChild) tbody.removeChild(tbody.firstChild);
+  if(!data.length){ empty.style.display='block'; return; }
   empty.style.display='none';
-  tbody.innerHTML=data.map(r=>{
+  data.forEach(function(r){
     const egresaHoy=r.fechaEgreso===hoy;
-    const rowStyle=egresaHoy?'background:#F0FDF4;':'';
+    const tr=document.createElement('tr');
+    tr.style.cssText=egresaHoy?'background:#F0FDF4;cursor:pointer':'cursor:pointer';
+    tr.dataset.id=String(r.id);
+    tr.dataset.sec='uci';
+    tr.onclick=function(){ toggleExpand(this); };
     const alertas=[];
     if(r['caídaEvento']==='Sí') alertas.push('<span style="color:var(--rojo);font-size:10px;font-weight:700">Caída</span>');
     if(r['lppEvento']==='Sí') alertas.push('<span style="color:var(--rojo);font-size:10px;font-weight:700">LPP</span>');
     if(r.infeccionEvento==='Sí') alertas.push('<span style="color:var(--rojo);font-size:10px;font-weight:700">Infec.</span>');
     if(r.ventMec==='Sí') alertas.push('<span style="color:var(--az);font-size:10px;font-weight:700">VM</span>');
     const al=alertas.join(' ')||'—';
-    const nas=nasChip(r);
     const dx=(r.diagnostico||'—')+(r.procedimiento?'<br><em style="color:var(--az2)">'+r.procedimiento+'</em>':'');
     const med=(r.medico||'—')+(r.especialidadMedico?'<br><small style="color:var(--gris4)">'+r.especialidadMedico+'</small>':'');
-    const dias=diasEstancia(r.fechaIngreso);
-    const tr='<tr style="'+rowStyle+'cursor:pointer" data-id="'+r.id+'" data-sec="uci" onclick="toggleExpand(this)">'
-      +'<td><b>'+(r.habitacion||'—')+'</b></td>'
+    tr.innerHTML='<td><b>'+(r.habitacion||'—')+'</b></td>'
       +'<td style="font-size:11px;white-space:nowrap">'+(r.fechaIngreso||'—')+'<br><span style="color:var(--gris4)">'+(r.horaIngreso||'')+'</span></td>'
-      +'<td style="text-align:center;font-weight:600;color:var(--rojo)">'+dias+'</td>'
+      +'<td style="text-align:center;font-weight:600;color:var(--rojo)">'+diasEstancia(r.fechaIngreso)+'</td>'
       +'<td style="font-weight:600;color:var(--az2)">'+(r.nombre||'—')+'<br><span style="font-size:10px;font-weight:400;color:var(--gris4)">'+(r.sexo||'')+' · '+(r.edad||'')+'a</span></td>'
       +'<td style="font-size:11px">'+(r.expediente||'—')+'</td>'
       +'<td style="font-size:11px;color:var(--gris5);max-width:180px">'+dx+'</td>'
       +'<td style="font-size:11px">'+med+'</td>'
-      +'<td>'+nas+'</td>'
+      +'<td>'+nasChip(r)+'</td>'
       +'<td style="font-size:11px">'+al+'</td>'
-      +'<td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();requirePin(function(){abrirModalPaciente('+r.id+',\'uci\')})">✏</button></td>'
-      +'</tr>';
-    return tr;
-  }).join('');
+      +'<td></td>';
+    const btnU=document.createElement('button');
+    btnU.className='btn btn-ghost btn-sm'; btnU.textContent='✏';
+    (function(rid){ btnU.onclick=function(e){ e.stopPropagation(); requirePin(function(){ abrirModalPaciente(rid,'uci'); }); }; })(r.id);
+    tr.lastElementChild.appendChild(btnU);
+    tbody.appendChild(tr);
+  });
 }
 
 function renderEndo(){ const data=filtrarDia(DB.endo); const tbody=document.getElementById('endo-tbody'); const empty=document.getElementById('endo-empty'); document.getElementById('endo-count').textContent=data.length+' procedimiento'+(data.length!==1?'s':''); if(!data.length){tbody.innerHTML='';empty.style.display='block';return;} empty.style.display='none'; tbody.innerHTML=data.map(r=>`<tr><td><b>${r.sala||'—'}</b></td><td style="font-size:11px">${r.fechaIngreso||'—'}</td><td style="font-family:'DM Mono',monospace;font-size:11px">${r.horaIngreso||'—'}</td><td style="max-width:130px;font-weight:500">${r.nombre||'—'}</td><td style="font-family:'DM Mono',monospace;font-size:11px">${r.expediente||'—'}</td><td><span class="badge ${r.sexo==='M'?'b-m':'b-f'}">${r.sexo||'—'}</span></td><td style="text-align:center">${r.edad||'—'}</td><td style="max-width:150px;font-size:11px;color:var(--gris5)">${r.procedimiento||'—'}</td><td style="font-size:11px">${r.especialidad||'—'}</td><td style="font-size:11px">${r.cirujano||'—'}</td><td style="font-size:11px">${r.anestesiologo||'—'}</td><td style="text-align:center">${r.tiempoQx||'—'}</td><td style="font-size:11px">${r.tipo||'—'}</td><td style="font-size:11px">${r.aseguradora||'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="requirePin(()=>abrirModalProcedimiento(${r.id}))">✏</button></td></tr>`).join(''); }
@@ -1191,7 +1201,7 @@ function renderConcentrado(){
           ${Object.entries(glasgowGrupos).map(([g,n],i)=>{ const cols=['var(--verde)','var(--amarillo)','var(--naranja)','var(--rojo)']; return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--gris1)"><span style="font-size:11px;color:var(--gris6)">${g}</span><span style="font-size:12px;font-weight:600;color:${cols[i]}">${n}</span></div>`; }).join('')}
         </div>
       </div>
-    </div>`; }catch(e){ document.getElementById('concentrado-body').innerHTML='<div style="padding:20px;color:var(--gris5)">⚠ Error al calcular concentrado: '+e.message+'</div>'; }
+    </div>`; }catch(e){ document.getElementById('concentrado-body').innerHTML='<div style="padding:20px;color:var(--rojo);font-weight:600">⚠ Error en concentrado: '+e.message+'</div><pre style="font-size:10px;padding:12px">'+e.stack+'</pre>'; }
 }
 
 function editarPaciente(btn){
@@ -1214,4 +1224,3 @@ cargarDatos();
 </script>
 </body>
 </html>
-
