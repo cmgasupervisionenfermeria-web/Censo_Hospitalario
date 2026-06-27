@@ -544,22 +544,36 @@ function panelDetalle(r, seccion){
 function toggleExpand(el){
   const rowId=Number(el.dataset.id);
   const seccion=el.dataset.sec;
-  const row=el;
-  const exp=document.getElementById('exp-'+rowId);
-  if(!row||!exp) return;
-  const isOpen=exp.classList.contains('open');
-  document.querySelectorAll('.exp-row.open').forEach(el=>el.classList.remove('open'));
-  document.querySelectorAll('.row-expandable.expanded').forEach(el=>el.classList.remove('expanded'));
-  if(!isOpen){
-    exp.classList.add('open');
-    row.classList.add('expanded');
-    const det=document.getElementById('det-'+rowId);
-    if(det && !det.dataset.loaded){
-      const rec=DB[seccion].find(r=>r.id===rowId);
-      if(rec){ try{ det.innerHTML=panelDetalle(rec,seccion); }catch(e){ det.innerHTML='<div style="padding:12px;color:var(--gris4)">Error al cargar detalle</div>'; } }
-      det.dataset.loaded='1';
-    }
+  // Limpiar selección anterior
+  document.querySelectorAll('tr[data-id].sel-row').forEach(function(r){ r.classList.remove('sel-row'); r.style.background=''; });
+  const panel=document.getElementById('det-panel-flotante');
+  if(panel && panel.dataset.openId===String(rowId)){
+    // Click en la misma fila: cerrar
+    panel.style.display='none';
+    panel.dataset.openId='';
+    return;
   }
+  el.classList.add('sel-row');
+  el.style.background='var(--az3)';
+  const rec=DB[seccion].find(function(r){ return r.id===rowId; });
+  if(!rec) return;
+  let p=document.getElementById('det-panel-flotante');
+  if(!p){
+    p=document.createElement('div');
+    p.id='det-panel-flotante';
+    p.style.cssText='margin-top:8px;border-radius:10px;border:2px solid var(--az4);background:var(--gris0);overflow:hidden';
+    // Insertar después del card de hosp/uci
+    const page=document.getElementById('page-'+seccion);
+    if(page) page.appendChild(p);
+  } else {
+    // Mover al page correcto
+    const page=document.getElementById('page-'+seccion);
+    if(page && p.parentElement!==page) page.appendChild(p);
+  }
+  try{ p.innerHTML=panelDetalle(rec,seccion); }catch(e){ p.innerHTML='<div style="padding:16px;color:var(--gris4)">No se pudo cargar el detalle.</div>'; }
+  p.style.display='block';
+  p.dataset.openId=String(rowId);
+  p.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
 function diasDispositivo(idIns, idRet, idResult){
@@ -593,19 +607,24 @@ function renderHosp(){
     if(r['caídaEvento']==='Sí') alertas.push('<span style="color:var(--rojo);font-size:10px;font-weight:700">Caída</span>');
     if(r['lppEvento']==='Sí') alertas.push('<span style="color:var(--rojo);font-size:10px;font-weight:700">LPP</span>');
     if(r.infeccionEvento==='Sí') alertas.push('<span style="color:var(--rojo);font-size:10px;font-weight:700">Infec.</span>');
-    return '<tr id="row-'+r.id+'" class="row-expandable" style="'+rowStyle+'" data-id="'+r.id+'" data-sec="hosp" onclick="toggleExpand(this)">'
+    const al=alertas.join(' ')||'—';
+    const nas=nasChip(r);
+    const dx=(r.diagnostico||'—')+(r.procedimiento?'<br><em style="color:var(--az2)">'+r.procedimiento+'</em>':'');
+    const med=(r.medico||'—')+(r.especialidadMedico?'<br><small style="color:var(--gris4)">'+r.especialidadMedico+'</small>':'');
+    const dias=diasEstancia(r.fechaIngreso);
+    const tr='<tr style="'+rowStyle+'cursor:pointer" data-id="'+r.id+'" data-sec="hosp" onclick="toggleExpand(this)">'
       +'<td><b>'+(r.habitacion||'—')+'</b></td>'
       +'<td style="font-size:11px;white-space:nowrap">'+(r.fechaIngreso||'—')+'<br><span style="color:var(--gris4)">'+(r.horaIngreso||'')+'</span></td>'
-      +'<td style="text-align:center;font-weight:600;color:var(--az2)">'+diasEstancia(r.fechaIngreso)+'</td>'
+      +'<td style="text-align:center;font-weight:600;color:var(--az2)">'+dias+'</td>'
       +'<td style="font-weight:600;color:var(--az2)">'+(r.nombre||'—')+'<br><span style="font-size:10px;font-weight:400;color:var(--gris4)">'+(r.sexo||'')+' · '+(r.edad||'')+'a</span></td>'
-      +'<td style="font-family:monospace;font-size:11px">'+(r.expediente||'—')+'</td>'
-      +'<td style="font-size:11px;color:var(--gris5);max-width:180px">'+(r.diagnostico||'—')+(r.procedimiento?'<br><span style="color:var(--az2);font-style:italic">'+r.procedimiento+'</span>':'')+'</td>'
-      +'<td style="font-size:11px">'+(r.medico||'—')+(r.especialidadMedico?'<br><span style="font-size:10px;color:var(--gris4)">'+r.especialidadMedico+'</span>':'')+'</td>'
-      +'<td>'+nasChip(r)+'</td>'
-      +'<td style="font-size:11px">'+(alertas.join(' ')||'—')+'</td>'
-      +'<td><button class="btn btn-ghost btn-sm" data-id="'+r.id+'" data-sec="hosp" onclick="event.stopPropagation();editarPaciente(this)">✏</button></td>'
-      +'</tr>'
-      +'<tr id="exp-'+r.id+'" class="exp-row"><td colspan="10"><div id="det-'+r.id+'"></div></td></tr>';
+      +'<td style="font-size:11px">'+(r.expediente||'—')+'</td>'
+      +'<td style="font-size:11px;color:var(--gris5);max-width:180px">'+dx+'</td>'
+      +'<td style="font-size:11px">'+med+'</td>'
+      +'<td>'+nas+'</td>'
+      +'<td style="font-size:11px">'+al+'</td>'
+      +'<td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();requirePin(function(){abrirModalPaciente('+r.id+',\'hosp\')})">✏</button></td>'
+      +'</tr>';
+    return tr;
   }).join('');
 }
 
@@ -625,19 +644,24 @@ function renderUCI(){
     if(r['lppEvento']==='Sí') alertas.push('<span style="color:var(--rojo);font-size:10px;font-weight:700">LPP</span>');
     if(r.infeccionEvento==='Sí') alertas.push('<span style="color:var(--rojo);font-size:10px;font-weight:700">Infec.</span>');
     if(r.ventMec==='Sí') alertas.push('<span style="color:var(--az);font-size:10px;font-weight:700">VM</span>');
-    return '<tr id="row-'+r.id+'" class="row-expandable" style="'+rowStyle+'" data-id="'+r.id+'" data-sec="uci" onclick="toggleExpand(this)">'
+    const al=alertas.join(' ')||'—';
+    const nas=nasChip(r);
+    const dx=(r.diagnostico||'—')+(r.procedimiento?'<br><em style="color:var(--az2)">'+r.procedimiento+'</em>':'');
+    const med=(r.medico||'—')+(r.especialidadMedico?'<br><small style="color:var(--gris4)">'+r.especialidadMedico+'</small>':'');
+    const dias=diasEstancia(r.fechaIngreso);
+    const tr='<tr style="'+rowStyle+'cursor:pointer" data-id="'+r.id+'" data-sec="uci" onclick="toggleExpand(this)">'
       +'<td><b>'+(r.habitacion||'—')+'</b></td>'
       +'<td style="font-size:11px;white-space:nowrap">'+(r.fechaIngreso||'—')+'<br><span style="color:var(--gris4)">'+(r.horaIngreso||'')+'</span></td>'
-      +'<td style="text-align:center;font-weight:600;color:var(--rojo)">'+diasEstancia(r.fechaIngreso)+'</td>'
+      +'<td style="text-align:center;font-weight:600;color:var(--rojo)">'+dias+'</td>'
       +'<td style="font-weight:600;color:var(--az2)">'+(r.nombre||'—')+'<br><span style="font-size:10px;font-weight:400;color:var(--gris4)">'+(r.sexo||'')+' · '+(r.edad||'')+'a</span></td>'
-      +'<td style="font-family:monospace;font-size:11px">'+(r.expediente||'—')+'</td>'
-      +'<td style="font-size:11px;color:var(--gris5);max-width:180px">'+(r.diagnostico||'—')+(r.procedimiento?'<br><span style="color:var(--az2);font-style:italic">'+r.procedimiento+'</span>':'')+'</td>'
-      +'<td style="font-size:11px">'+(r.medico||'—')+(r.especialidadMedico?'<br><span style="font-size:10px;color:var(--gris4)">'+r.especialidadMedico+'</span>':'')+'</td>'
-      +'<td>'+nasChip(r)+'</td>'
-      +'<td style="font-size:11px">'+(alertas.join(' ')||'—')+'</td>'
-      +'<td><button class="btn btn-ghost btn-sm" data-id="'+r.id+'" data-sec="uci" onclick="event.stopPropagation();editarPaciente(this)">✏</button></td>'
-      +'</tr>'
-      +'<tr id="exp-'+r.id+'" class="exp-row"><td colspan="10"><div id="det-'+r.id+'"></div></td></tr>';
+      +'<td style="font-size:11px">'+(r.expediente||'—')+'</td>'
+      +'<td style="font-size:11px;color:var(--gris5);max-width:180px">'+dx+'</td>'
+      +'<td style="font-size:11px">'+med+'</td>'
+      +'<td>'+nas+'</td>'
+      +'<td style="font-size:11px">'+al+'</td>'
+      +'<td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();requirePin(function(){abrirModalPaciente('+r.id+',\'uci\')})">✏</button></td>'
+      +'</tr>';
+    return tr;
   }).join('');
 }
 
@@ -1043,7 +1067,7 @@ function renderConcentrado(){
 
   function ic(color,titulo,formula,valor,desc,barPct){ return `<div class="ind-card"><div class="ind-hdr"><div class="ind-dot" style="background:${color}"></div><span class="ind-ttl">${titulo}</span></div>${formula?`<div style="font-size:9px;color:var(--gris4);font-family:'DM Mono',monospace;margin-bottom:6px">${formula}</div>`:''}<div class="ind-val" style="color:${color}">${valor!==null&&valor!==undefined?valor:'—'}</div><div class="ind-desc">${desc}</div><div class="ind-bar"><div class="ind-fill" style="width:${Math.min(barPct||0,100)}%;background:${color}"></div></div></div>`; }
 
-  document.getElementById('concentrado-body').innerHTML=`
+  try{ document.getElementById('concentrado-body').innerHTML=`
     <div style="font-size:16px;font-weight:600;color:var(--gris7);margin-bottom:14px">${MESES_NOM[mes]} ${anio} &nbsp;|&nbsp; <span style="font-size:12px;font-weight:400;color:var(--gris4)">${diasMes} días · ${todos.length} pacientes · ${totalEgresos} egresos</span></div>
     <div class="stats-grid" style="grid-template-columns:repeat(6,1fr);margin-bottom:14px">
       <div class="stat-card"><div class="stat-lbl">Ingresos Hosp</div><div class="stat-val" style="color:var(--az)">${ingresosHosp.length}</div><div class="stat-sub">${pdHosp} pac-día</div></div>
@@ -1167,7 +1191,7 @@ function renderConcentrado(){
           ${Object.entries(glasgowGrupos).map(([g,n],i)=>{ const cols=['var(--verde)','var(--amarillo)','var(--naranja)','var(--rojo)']; return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--gris1)"><span style="font-size:11px;color:var(--gris6)">${g}</span><span style="font-size:12px;font-weight:600;color:${cols[i]}">${n}</span></div>`; }).join('')}
         </div>
       </div>
-    </div>`;
+    </div>`; }catch(e){ document.getElementById('concentrado-body').innerHTML='<div style="padding:20px;color:var(--gris5)">⚠ Error al calcular concentrado: '+e.message+'</div>'; }
 }
 
 function editarPaciente(btn){
