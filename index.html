@@ -396,7 +396,7 @@ const NAS_BGS={'Básico':'var(--verde3)','Moderado':'var(--amarillo3)','Alta com
 const NAS_MINS={'Básico':120,'Moderado':240,'Alta complejidad':360,'Crítico':480};
 
 function inferirNAS(r){
-  const meds=[r.med1||'',r.med2||'',r.med3||''].map(m=>m.toLowerCase());
+  const meds=[String(r.med1||''),String(r.med2||''),String(r.med3||'')].map(function(m){ return m.toLowerCase(); });
   const tieneVasopresor=meds.some(m=>m.includes('vasopresor'));
   const tieneSedacion=meds.some(m=>m.includes('sedac'));
   const tieneInsulina=meds.some(m=>m.includes('insulina'));
@@ -411,7 +411,7 @@ function inferirNAS(r){
   const tieneOstomia=!!(r.ostomia);
   const tieneIV2=!!(r.accesoIV2);
   const monCont=r.monitoreo==='Continuo';
-  const aisl=r.aislamiento||'';
+  const aisl=String(r.aislamiento||'');
   const aislamientoEspecial=aisl==='Vía aérea'||aisl==='Contacto plus';
   const dispositivosCount=[tieneFoley,tieneSNG,tieneDren,tieneIV2,tieneOstomia].filter(Boolean).length;
 
