@@ -427,18 +427,29 @@ function inferirNAS(r){
 function nasChip(r){ const n=inferirNAS(r); return `<span style="background:${n.bg};color:${n.color};padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700;white-space:nowrap">${n.nivel}</span>`; }
 
 function showPage(id,btn){ document.querySelectorAll('.page').forEach(p=>p.classList.remove('active')); document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active')); document.getElementById('page-'+id).classList.add('active'); if(btn) btn.classList.add('active'); actualizarFechas(); if(id==='hosp') renderHosp(); if(id==='uci') renderUCI(); if(id==='endo') renderEndo(); if(id==='def') renderDef(); if(id==='concentrado') renderConcentrado(); if(id==='buscar') renderBuscar(); }
-function cambiarDia(d){ cur.setDate(cur.getDate()+d); actualizarFechas(); renderAll(); }
+function cambiarDia(d){
+  cur.setDate(cur.getDate()+d);
+  const panel=document.getElementById('det-panel-flotante');
+  if(panel){ panel.style.display='none'; panel.dataset.openId=''; }
+  document.querySelectorAll('tr.sel-row').forEach(function(r){ r.classList.remove('sel-row'); r.style.background=''; });
+  actualizarFechas(); renderAll();
+}
 function actualizarFechas(){ const l=fmt(cur); ['dateLabel','dateLabelUCI','dateLabelEndo','dateLabelDef'].forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent=l; }); }
 function renderAll(){ renderHosp(); renderUCI(); renderEndo(); renderDef(); }
 
 const GAS_CONFIGURADO = GAS_URL !== 'TU_URL_GAS_AQUI';
-function guardarLocal(){ try{ localStorage.setItem('censo_db_v2',JSON.stringify({db:DB,nid,ts:Date.now()})); }catch(e){} }
-function cargarLocal(){ try{ const raw=localStorage.getItem('censo_db_v2'); if(!raw) return false; const p=JSON.parse(raw); if(p.db) ['hosp','uci','endo','def'].forEach(s=>{ if(Array.isArray(p.db[s])) DB[s]=p.db[s]; }); if(p.nid) nid=p.nid; return true; }catch(e){ return false; } }
+function guardarLocal(){ try{ localStorage.setItem('censo_db_v3',JSON.stringify({db:DB,nid,ts:Date.now()})); }catch(e){} }
+function cargarLocal(){ try{ const raw=localStorage.getItem('censo_db_v3'); if(!raw) return false; const p=JSON.parse(raw); if(p.db) ['hosp','uci','endo','def'].forEach(s=>{ if(Array.isArray(p.db[s])) DB[s]=p.db[s]; }); if(p.nid) nid=p.nid; return true; }catch(e){ return false; } }
 function recalcNid(){ const allIds=[...DB.hosp,...DB.uci,...DB.endo,...DB.def].map(x=>Number(x.id)||0); nid=allIds.length?Math.max(...allIds)+1:1; }
 
 async function apiCall(payload){ guardarLocal(); if(!GAS_CONFIGURADO) return{ok:true}; try{ const params=new URLSearchParams(); params.append('action',payload.action); params.append('section',payload.section||''); if(payload.record) params.append('record',JSON.stringify(payload.record)); if(payload.id!==undefined) params.append('id',payload.id); const r=await fetch(GAS_URL+'?'+params.toString()); const data=await r.json(); if(data.ok) guardarLocal(); return data; }catch(e){ console.error('Error GAS:',e); toast('⚠ Sin conexión — guardado localmente','error'); return{ok:false}; } }
 
-async function cargarDatos(){ const hayLocal=cargarLocal(); if(hayLocal){ recalcNid(); actualizarFechas(); renderAll(); } if(!GAS_CONFIGURADO){ if(!hayLocal){ actualizarFechas(); renderAll(); } return; } showLoader('🔄 Sincronizando con Google Sheets…'); try{ const r=await fetch(GAS_URL+'?action=getAll'); const data=await r.json(); if(data&&typeof data==='object'){ ['hosp','uci','endo','def'].forEach(s=>{ if(Array.isArray(data[s])){ DB[s]=data[s].map(rec=>{ const camposFecha=['fecha','fechaIngreso','fechaNac','fechaProcedimiento','fechaEgreso','accesoIV1Fecha','accesoIV1Retiro','accesoIV2Fecha','accesoIV2Retiro','sondaFoleyFecha','sondaFoleyRetiro','sngFecha','sngRetiro','drenaje1Fecha','drenaje1Retiro','drenaje2Fecha','drenaje2Retiro','soporteRespFecha','soporteRespRetiro','ventMecFecha','ventMecRetiro','caídaFecha','infeccionFecha','fechaDefuncion','fechaIngresoTanatorio']; const camposHora=['horaIngreso','horaEgreso','horaDefuncion','horaIngresoTanatorio','horaEgresoTanatorio']; camposFecha.forEach(c=>{ if(rec[c]&&typeof rec[c]==='string'&&rec[c].includes('T')){ rec[c]=rec[c].split('T')[0]; } }); camposHora.forEach(c=>{ if(rec[c]&&typeof rec[c]==='string'&&rec[c].includes('T')){ const d=new Date(rec[c]); rec[c]=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); } }); return rec; }); } }); recalcNid(); guardarLocal(); } }catch(e){ console.error('Error cargando GAS:',e); if(!hayLocal){ actualizarFechas(); renderAll(); } } hideLoader(); actualizarFechas(); Promise.resolve().then(function(){ renderAll(); }); }
+async function cargarDatos(){ const hayLocal=cargarLocal(); if(hayLocal){ recalcNid(); actualizarFechas(); renderAll(); } if(!GAS_CONFIGURADO){ if(!hayLocal){ actualizarFechas(); renderAll(); } return; } showLoader('🔄 Sincronizando con Google Sheets…'); try{ const r=await fetch(GAS_URL+'?action=getAll'); const data=await r.json(); if(data&&typeof data==='object'){ ['hosp','uci','endo','def'].forEach(s=>{ if(Array.isArray(data[s])){ DB[s]=data[s].map(rec=>{ const camposFecha=['fecha','fechaIngreso','fechaNac','fechaProcedimiento','fechaEgreso','accesoIV1Fecha','accesoIV1Retiro','accesoIV2Fecha','accesoIV2Retiro','sondaFoleyFecha','sondaFoleyRetiro','sngFecha','sngRetiro','drenaje1Fecha','drenaje1Retiro','drenaje2Fecha','drenaje2Retiro','soporteRespFecha','soporteRespRetiro','ventMecFecha','ventMecRetiro','caídaFecha','infeccionFecha','fechaDefuncion','fechaIngresoTanatorio']; const camposHora=['horaIngreso','horaEgreso','horaDefuncion','horaIngresoTanatorio','horaEgresoTanatorio']; camposFecha.forEach(c=>{ if(rec[c]&&typeof rec[c]==='string'&&rec[c].includes('T')){ rec[c]=rec[c].split('T')[0]; } }); camposHora.forEach(c=>{ if(rec[c]&&typeof rec[c]==='string'&&rec[c].includes('T')){ const d=new Date(rec[c]); rec[c]=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); } }); return rec; }); } }); recalcNid(); guardarLocal(); } }catch(e){ console.error('Error cargando GAS:',e); if(!hayLocal){ actualizarFechas(); renderAll(); } } hideLoader(); actualizarFechas(); Promise.resolve().then(function(){
+    renderAll();
+    // Si estamos en la pestaña concentrado, re-renderizarlo con datos frescos
+    const pConc=document.getElementById('page-concentrado');
+    if(pConc && pConc.classList.contains('active')) renderConcentrado();
+  }); }
 
 function esFecha(v){ return typeof v==='string' && /^\d{4}-\d{2}-\d{2}$/.test(v); }
 
@@ -597,7 +608,7 @@ function renderHosp(){
   const tbody=document.getElementById('hosp-tbody');
   const empty=document.getElementById('hosp-empty');
   const hoy=dk(cur);
-  document.getElementById('hosp-count').textContent=data.length+' paciente'+(data.length!==1?'s':'')+' activo'+(data.length!==1?'s':'');
+  document.getElementById('hosp-count').textContent=data.length+' paciente'+(data.length!==1?'s':'')+' activo'+(data.length!==1?'s':'')+(DB.hosp.length!==data.length?' (de '+DB.hosp.length+' total)':'');
   while(tbody.firstChild) tbody.removeChild(tbody.firstChild);
   if(!data.length){ empty.style.display='block'; return; }
   empty.style.display='none';
@@ -960,6 +971,12 @@ function renderBuscar(){
 function renderConcentrado(){
   const mes=parseInt(document.getElementById('con-mes').value);
   const anio=parseInt(document.getElementById('con-anio').value);
+  // Debug: mostrar info básica antes de calcular
+  const cuerpo=document.getElementById('concentrado-body');
+  if(!DB.hosp.length && !DB.uci.length){
+    cuerpo.innerHTML='<div style="padding:24px;text-align:center;color:var(--gris4)">⌛ Cargando datos... Si persiste, presiona <b>Sync</b> en la esquina superior derecha.</div>';
+    return;
+  }
   const diasMes=new Date(anio,mes+1,0).getDate();
   const inicioMes=`${anio}-${String(mes+1).padStart(2,'0')}-01`;
   const finMes=`${anio}-${String(mes+1).padStart(2,'0')}-${String(diasMes).padStart(2,'0')}`;
@@ -1212,7 +1229,7 @@ function editarPaciente(btn){
 
 function limpiarCache(){
   if(!confirm('¿Borrar caché local y recargar datos de Google Sheets?')) return;
-  localStorage.removeItem('censo_db_v2');
+  localStorage.removeItem('censo_db_v3');
   DB={hosp:[],uci:[],endo:[],def:[]};
   nid=1;
   toast('🔄 Caché borrado — recargando…');
