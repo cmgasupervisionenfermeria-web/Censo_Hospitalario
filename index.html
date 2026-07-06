@@ -333,6 +333,10 @@ style="width:100%;padding:12px;font-size:20px;text-align:center;border:2px solid
       <option value="activo">Solo activos</option>
       <option value="egresado">Solo egresados</option>
     </select>
+    <select id="srch-esp" onchange="renderBuscar()"
+      style="padding:7px 10px;font-size:12px;border-radius:7px;border:1px solid var(--gris3);font-family:inherit;max-width:220px">
+      <option value="">Todas las especialidades</option>
+    </select>
   </div>
   <span id="srch-count" style="font-size:12px;color:var(--gris4);white-space:nowrap;align-self:center"></span>
 </div>
@@ -454,6 +458,8 @@ async function cargarDatos(){ const hayLocal=cargarLocal(); if(hayLocal){ recalc
     // Si estamos en la pestaña concentrado, re-renderizarlo con datos frescos
     const pConc=document.getElementById('page-concentrado');
     if(pConc && pConc.classList.contains('active')) renderConcentrado();
+    const pBuscar=document.getElementById('page-buscar');
+    if(pBuscar && pBuscar.classList.contains('active')) renderBuscar();
   }); }
 
 function esFecha(v){ return typeof v==='string' && /^\d{4}-\d{2}-\d{2}$/.test(v); }
@@ -1087,10 +1093,25 @@ function irAFicha(id,seccion){
   },150);
 }
 
+function poblarEspecialidadesBuscador(){
+  const sel=document.getElementById('srch-esp');
+  if(!sel) return;
+  const actual=sel.value;
+  const set={};
+  DB.hosp.forEach(function(r){ if(r.especialidadMedico) set[r.especialidadMedico]=true; });
+  DB.uci.forEach(function(r){ if(r.especialidadMedico) set[r.especialidadMedico]=true; });
+  DB.endo.forEach(function(r){ if(r.especialidad) set[r.especialidad]=true; });
+  const lista=Object.keys(set).sort(function(a,b){ return a.localeCompare(b); });
+  sel.innerHTML='<option value="">Todas las especialidades</option>'+lista.map(function(e){ return '<option value="'+e.replace(/"/g,'&quot;')+'">'+e+'</option>'; }).join('');
+  if(lista.indexOf(actual)!==-1) sel.value=actual;
+}
+
 function renderBuscar(){
+  poblarEspecialidadesBuscador();
   const q=(document.getElementById('srch-q')?.value||'').trim().toLowerCase();
   const sec=document.getElementById('srch-sec')?.value||'';
   const est=document.getElementById('srch-estado')?.value||'';
+  const esp=document.getElementById('srch-esp')?.value||'';
   const tbody=document.getElementById('srch-tbody');
   const empty=document.getElementById('srch-empty');
   const emptyMsg=document.getElementById('srch-empty-msg');
@@ -1106,6 +1127,10 @@ function renderBuscar(){
         const activo=!r.fechaEgreso||!esFecha(r.fechaEgreso)||r.fechaEgreso>=hoy;
         if(est==='activo'&&!activo) return;
         if(est==='egresado'&&activo) return;
+      }
+      if(esp){
+        const espReg=r.especialidadMedico||r.especialidad||'';
+        if(espReg!==esp) return;
       }
       if(q){ const nombre=(r.nombre||'').toLowerCase(); const exp=(r.expediente||'').toLowerCase(); if(!nombre.includes(q)&&!exp.includes(q)) return; }
       resultados.push({...r,_sec:s});
@@ -1262,6 +1287,25 @@ function renderConcentrado(){
   const glasgowGrupos={'15 (Normal)':0,'13-14 (Leve)':0,'9-12 (Moderado)':0,'≤8 (Grave)':0};
   todos.forEach(r=>{ const g=parseInt(r.glasgow)||0; if(g===15) glasgowGrupos['15 (Normal)']++; else if(g>=13) glasgowGrupos['13-14 (Leve)']++; else if(g>=9) glasgowGrupos['9-12 (Moderado)']++; else if(g>0) glasgowGrupos['≤8 (Grave)']++; });
 
+  // ── Ingresos / Egresos por especialidad (Hosp vs UCI) ──
+  const espMap={};
+  function addEsp(arr,campo){
+    arr.forEach(function(r){
+      const esp=r.especialidadMedico||'Sin especialidad';
+      if(!espMap[esp]) espMap[esp]={ingH:0,egH:0,ingU:0,egU:0};
+      espMap[esp][campo]++;
+    });
+  }
+  addEsp(ingresosHosp,'ingH');
+  addEsp(egresosHosp,'egH');
+  addEsp(ingresosUCI,'ingU');
+  addEsp(egresosUCI,'egU');
+  const espRows=Object.keys(espMap).map(function(esp){
+    const c=espMap[esp];
+    const totIng=c.ingH+c.ingU, totEg=c.egH+c.egU;
+    return {esp:esp,ingH:c.ingH,egH:c.egH,ingU:c.ingU,egU:c.egU,totIng:totIng,totEg:totEg,dif:totIng-totEg};
+  }).sort(function(a,b){ return (b.totIng+b.totEg)-(a.totIng+a.totEg); });
+
   function ic(color,titulo,formula,valor,desc,barPct){ return `<div class="ind-card"><div class="ind-hdr"><div class="ind-dot" style="background:${color}"></div><span class="ind-ttl">${titulo}</span></div>${formula?`<div style="font-size:9px;color:var(--gris4);font-family:'DM Mono',monospace;margin-bottom:6px">${formula}</div>`:''}<div class="ind-val" style="color:${color}">${valor!==null&&valor!==undefined?valor:'—'}</div><div class="ind-desc">${desc}</div><div class="ind-bar"><div class="ind-fill" style="width:${Math.min(barPct||0,100)}%;background:${color}"></div></div></div>`; }
 
   try{ document.getElementById('concentrado-body').innerHTML=`
@@ -1288,6 +1332,26 @@ function renderConcentrado(){
       ${ic('var(--naranja2)','Tasa de Caídas','(caídas ÷ pacientes-día) × 1000',tasaCaidas!==null?tasaCaidas+' / 1000 pac-día':'—',`${nCaidas} caída${nCaidas!==1?'s':''} (H:${nCaidasH} UCI:${nCaidasU}) en ${pdTodos} pac-día. Meta <1`,Math.min(tasaCaidas||0,100))}
       ${ic('var(--rojo)','Tasa de LPP','(LPP ÷ pacientes) × 100',tasaLPP!==null?tasaLPP+'%':'—',`${nLPP} LPP en ${todos.length} pacientes. Meta <2%`,Math.min(tasaLPP||0,100))}
       ${ic('var(--gris5)','Mortalidad','(defunciones ÷ pacientes) × 100',pctMort+'%',`${defMes.length} defunciones de ${todos.length} pacientes`,Math.min(pctMort*5,100))}
+    </div>
+    <div style="margin-bottom:12px">
+      <div class="group-title">🩺 Ingresos y Egresos por Especialidad — ${MESES_NOM[mes]} ${anio}</div>
+      <div class="card" style="margin-bottom:0"><div class="pac-table-wrap"><table>
+        <thead><tr>
+          <th>Especialidad</th><th>Ingresos Hosp</th><th>Egresos Hosp</th><th>Ingresos UCI</th><th>Egresos UCI</th><th>Total Ingresos</th><th>Total Egresos</th><th>Diferencia</th>
+        </tr></thead>
+        <tbody>${espRows.length?espRows.map(function(r){
+          const difColor=r.dif>0?'var(--az2)':r.dif<0?'var(--verde)':'var(--gris5)';
+          return `<tr><td style="font-weight:600">${r.esp}</td>`
+            +`<td style="text-align:center;color:var(--az2);font-weight:600">${r.ingH||'—'}</td>`
+            +`<td style="text-align:center;color:var(--verde);font-weight:600">${r.egH||'—'}</td>`
+            +`<td style="text-align:center;color:var(--rojo);font-weight:600">${r.ingU||'—'}</td>`
+            +`<td style="text-align:center;color:var(--naranja);font-weight:600">${r.egU||'—'}</td>`
+            +`<td style="text-align:center;font-weight:700">${r.totIng}</td>`
+            +`<td style="text-align:center;font-weight:700">${r.totEg}</td>`
+            +`<td style="text-align:center;font-weight:700;color:${difColor}">${r.dif>0?'+':''}${r.dif}</td></tr>`;
+        }).join(''):'<tr><td colspan="8" style="text-align:center;color:var(--gris4);padding:16px">Sin movimientos con especialidad registrada este mes</td></tr>'}</tbody>
+      </table></div></div>
+      <div style="font-size:10px;color:var(--gris4);margin-top:6px">Basado en la especialidad del médico tratante capturada en cada ingreso/egreso. "Diferencia" = total ingresos − total egresos (positivo = más entradas que salidas en el mes).</div>
     </div>
     <div class="ind-grid-2" style="margin-bottom:12px">
       <div class="group-title">🦠 Infecciones Asociadas a la Atención</div>
