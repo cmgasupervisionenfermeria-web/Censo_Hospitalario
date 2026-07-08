@@ -435,7 +435,6 @@ function nasChip(r){ const n=inferirNAS(r); return `<span style="background:${n.
 function showPage(id,btn){ document.querySelectorAll('.page').forEach(p=>p.classList.remove('active')); document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active')); document.getElementById('page-'+id).classList.add('active'); if(btn) btn.classList.add('active'); actualizarFechas(); if(id==='hosp') renderHosp(); if(id==='uci') renderUCI(); if(id==='endo') renderEndo(); if(id==='def') renderDef(); if(id==='concentrado') renderConcentrado(); if(id==='buscar') renderBuscar(); }
 function cambiarDia(d){
   cur.setDate(cur.getDate()+d);
-  // Limpiar fila de detalle inline y selección
   const vf=document.getElementById('det-inline-row');
   if(vf) vf.parentNode.removeChild(vf);
   document.querySelectorAll('tr.sel-row').forEach(function(r){
@@ -455,7 +454,6 @@ async function apiCall(payload){ guardarLocal(); if(!GAS_CONFIGURADO) return{ok:
 
 async function cargarDatos(){ const hayLocal=cargarLocal(); if(hayLocal){ recalcNid(); actualizarFechas(); renderAll(); } if(!GAS_CONFIGURADO){ if(!hayLocal){ actualizarFechas(); renderAll(); } return; } showLoader('🔄 Sincronizando con Google Sheets…'); try{ const r=await fetch(GAS_URL+'?action=getAll'); const data=await r.json(); if(data&&typeof data==='object'){ ['hosp','uci','endo','def'].forEach(s=>{ if(Array.isArray(data[s])){ DB[s]=data[s].map(rec=>{ const camposFecha=['fecha','fechaIngreso','fechaNac','fechaProcedimiento','fechaEgreso','accesoIV1Fecha','accesoIV1Retiro','accesoIV2Fecha','accesoIV2Retiro','sondaFoleyFecha','sondaFoleyRetiro','sngFecha','sngRetiro','drenaje1Fecha','drenaje1Retiro','drenaje2Fecha','drenaje2Retiro','soporteRespFecha','soporteRespRetiro','ventMecFecha','ventMecRetiro','caídaFecha','infeccionFecha','fechaDefuncion','fechaIngresoTanatorio']; const camposHora=['horaIngreso','horaEgreso','horaDefuncion','horaIngresoTanatorio','horaEgresoTanatorio']; camposFecha.forEach(c=>{ if(rec[c]&&typeof rec[c]==='string'&&rec[c].includes('T')){ rec[c]=rec[c].split('T')[0]; } }); camposHora.forEach(c=>{ if(rec[c]&&typeof rec[c]==='string'&&rec[c].includes('T')){ const d=new Date(rec[c]); rec[c]=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); } }); return rec; }); } }); recalcNid(); guardarLocal(); } }catch(e){ console.error('Error cargando GAS:',e); if(!hayLocal){ actualizarFechas(); renderAll(); } } hideLoader(); actualizarFechas(); Promise.resolve().then(function(){
     renderAll();
-    // Si estamos en la pestaña concentrado, re-renderizarlo con datos frescos
     const pConc=document.getElementById('page-concentrado');
     if(pConc && pConc.classList.contains('active')) renderConcentrado();
     const pBuscar=document.getElementById('page-buscar');
@@ -464,8 +462,6 @@ async function cargarDatos(){ const hayLocal=cargarLocal(); if(hayLocal){ recalc
 
 function esFecha(v){ return typeof v==='string' && /^\d{4}-\d{2}-\d{2}$/.test(v); }
 
-// CORRECCIÓN 1: filtrarActivos ahora cierra correctamente con }
-// antes filtrarDia quedaba anidada dentro y nunca era accesible globalmente
 function filtrarActivos(arr){
   const hoy=dk(cur);
   return arr.filter(r=>{
@@ -473,16 +469,14 @@ function filtrarActivos(arr){
     if(!ingreso) return false;
     if(!esFecha(ingreso)) return false;
     if(ingreso>hoy) return false;
-    // CORRECCIÓN: ignorar fechaEgreso que no sea una fecha válida (ej. "Domicilio")
     if(esFecha(r.fechaEgreso) && r.fechaEgreso<hoy) return false;
     return true;
   }).sort((a,b)=>(a.habitacion||'').toString().localeCompare((b.habitacion||'').toString(),undefined,{numeric:true}));
-} // <-- CORRECCIÓN: esta llave faltaba en el original
+}
 
 function filtrarDia(arr){ return arr.filter(r=>r.fecha===dk(cur)); }
 function diasEstancia(fechaIng){ if(!fechaIng) return 0; const fi=new Date(fechaIng+'T12:00'); return Math.max(0,Math.round((cur-fi)/(1000*60*60*24))); }
 
-// CORRECCIÓN 2: dDias declarada ANTES de panelDetalle que la llama
 function dDias(ins, ret){
   if(!ins) return '—';
   const fin = ret || new Date().toISOString().split('T')[0];
@@ -569,7 +563,6 @@ function toggleExpand(el){
   const seccion=el.dataset.sec;
   const hoy=dk(cur);
 
-  // Helper: restaurar color original de una fila (verde si egresa hoy, vacío si no)
   function restaurarFila(r){
     r.classList.remove('sel-row');
     const rid=Number(r.dataset.id);
@@ -577,18 +570,14 @@ function toggleExpand(el){
     r.style.background=(rec2&&rec2.fechaEgreso===hoy)?'#BBF7D0':'';
   }
 
-  // Limpiar selección anterior restaurando su color original
   document.querySelectorAll('tr[data-id].sel-row').forEach(restaurarFila);
 
-  // Quitar fila de detalle inline anterior (si existe)
   const viejaFila=document.getElementById('det-inline-row');
   if(viejaFila) viejaFila.parentNode.removeChild(viejaFila);
 
-  // Si se hizo click en la misma fila → cerrar (ya se restauró el color arriba)
   const abierto=el.dataset.open==='1';
   if(abierto){ el.dataset.open=''; return; }
 
-  // Marcar fila como seleccionada (azul claro)
   el.classList.add('sel-row');
   el.style.background='var(--az3)';
   el.dataset.open='1';
@@ -596,7 +585,6 @@ function toggleExpand(el){
   const rec=DB[seccion].find(function(r){ return r.id===rowId; });
   if(!rec) return;
 
-  // Crear fila TR inline justo debajo de la fila seleccionada
   const detTr=document.createElement('tr');
   detTr.id='det-inline-row';
   detTr.style.cssText='background:var(--gris0)';
@@ -634,7 +622,6 @@ function habitacionOcupadaPor(seccion, habitacion, excludeId){
   return DB[seccion].find(function(r){
     if(excludeId!==null&&excludeId!==undefined&&String(r.id)===String(excludeId)) return false;
     if(String(r.habitacion)!==String(habitacion)) return false;
-    // Si ya tiene una fecha de egreso válida registrada, la cama se considera libre
     if(esFecha(r.fechaEgreso)) return false;
     return true;
   }) || null;
@@ -644,9 +631,17 @@ function renderCamasHosp(){
   const el=document.getElementById('hosp-camas');
   if(!el) return;
   const ocupadas=DB.hosp.filter(function(r){ return !esFecha(r.fechaEgreso); }).map(function(r){ return String(r.habitacion); });
-  const libres=CAMAS_HOSP-ocupadas.filter(function(h,i){ return ocupadas.indexOf(h)===i; }).length;
+  const ocupadasUnicas=ocupadas.filter(function(h,i){ return ocupadas.indexOf(h)===i; });
+  const todasHab=Array.from({length:CAMAS_HOSP},function(_,i){ return String(i+1); });
+  const libresHab=todasHab.filter(function(h){ return ocupadasUnicas.indexOf(h)===-1; });
+  const libres=libresHab.length;
   const color=libres<=0?'var(--rojo)':libres<=3?'var(--naranja)':'var(--verde)';
-  el.innerHTML=`🛏 <b style="color:${color}">${libres}</b>/${CAMAS_HOSP} camas libres`;
+  el.style.display='inline-block';
+  el.style.textAlign='right';
+  const chipsHTML=libres
+    ? `<div style="display:flex;flex-wrap:wrap;gap:3px;justify-content:flex-end;margin-top:4px;max-width:260px">${libresHab.map(function(h){ return `<span style="background:var(--verde3);color:var(--verde);padding:1px 7px;border-radius:99px;font-size:10px;font-weight:700">${h}</span>`; }).join('')}</div>`
+    : `<div style="font-size:10px;color:var(--gris4);margin-top:4px">Sin camas libres</div>`;
+  el.innerHTML=`<div>🛏 <b style="color:${color}">${libres}</b>/${CAMAS_HOSP} camas libres</div>${chipsHTML}`;
 }
 
 function renderCamasUCI(){
@@ -654,11 +649,20 @@ function renderCamasUCI(){
   if(!el) return;
   const ocupHab=DB.uci.filter(function(r){ return !esFecha(r.fechaEgreso); }).map(function(r){ return String(r.habitacion); });
   const habUCI=['UCI 1','UCI 2'], habUCIM=['UCIM 1','UCIM 2'];
-  const libresUCI=habUCI.filter(function(h){ return ocupHab.indexOf(h)===-1; }).length;
-  const libresUCIM=habUCIM.filter(function(h){ return ocupHab.indexOf(h)===-1; }).length;
+  const libresUCIArr=habUCI.filter(function(h){ return ocupHab.indexOf(h)===-1; });
+  const libresUCIMArr=habUCIM.filter(function(h){ return ocupHab.indexOf(h)===-1; });
+  const libresUCI=libresUCIArr.length, libresUCIM=libresUCIMArr.length;
   const colU=libresUCI===0?'var(--rojo)':'var(--verde)';
   const colM=libresUCIM===0?'var(--rojo)':'var(--verde)';
-  el.innerHTML=`🫀 UCI: <b style="color:${colU}">${libresUCI}</b>/2 &nbsp;·&nbsp; UCIM: <b style="color:${colM}">${libresUCIM}</b>/2 libres`;
+  el.style.display='inline-block';
+  el.style.textAlign='right';
+  function chips(arr){
+    return arr.length
+      ? arr.map(function(h){ return `<span style="background:var(--verde3);color:var(--verde);padding:1px 7px;border-radius:99px;font-size:10px;font-weight:700;margin-left:3px">${h}</span>`; }).join('')
+      : `<span style="color:var(--gris4);font-size:10px">Ninguna</span>`;
+  }
+  el.innerHTML=`<div>🫀 UCI: <b style="color:${colU}">${libresUCI}</b>/2 &nbsp;·&nbsp; UCIM: <b style="color:${colM}">${libresUCIM}</b>/2 libres</div>
+    <div style="margin-top:4px;font-size:10px">UCI: ${chips(libresUCIArr)} &nbsp;·&nbsp; UCIM: ${chips(libresUCIMArr)}</div>`;
 }
 
 function renderHosp(){
@@ -1023,7 +1027,6 @@ async function guardarPaciente(id,seccion){
     horaEgreso:document.getElementById('p-heg').value
   };
 
-  // Validación: habitación duplicada (solo si NO se está marcando egreso en este guardado)
   if(!(d.fechaEgreso&&esFecha(d.fechaEgreso))){
     const ocupante=habitacionOcupadaPor(seccion,d.habitacion,id||null);
     if(ocupante){
@@ -1162,11 +1165,9 @@ function renderBuscar(){
   }).join('');
 }
 
-
 function renderConcentrado(){
   const mes=parseInt(document.getElementById('con-mes').value);
   const anio=parseInt(document.getElementById('con-anio').value);
-  // Debug: mostrar info básica antes de calcular
   const cuerpo=document.getElementById('concentrado-body');
   if(!DB.hosp.length && !DB.uci.length){
     cuerpo.innerHTML='<div style="padding:24px;text-align:center;color:var(--gris4)">⌛ Cargando datos... Si persiste, presiona <b>Sync</b> en la esquina superior derecha.</div>';
@@ -1287,7 +1288,6 @@ function renderConcentrado(){
   const glasgowGrupos={'15 (Normal)':0,'13-14 (Leve)':0,'9-12 (Moderado)':0,'≤8 (Grave)':0};
   todos.forEach(r=>{ const g=parseInt(r.glasgow)||0; if(g===15) glasgowGrupos['15 (Normal)']++; else if(g>=13) glasgowGrupos['13-14 (Leve)']++; else if(g>=9) glasgowGrupos['9-12 (Moderado)']++; else if(g>0) glasgowGrupos['≤8 (Grave)']++; });
 
-  // ── Ingresos / Egresos por especialidad (Hosp vs UCI) ──
   const espMap={};
   function addEsp(arr,campo){
     arr.forEach(function(r){
