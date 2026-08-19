@@ -511,6 +511,7 @@ function panelDetalle(r, seccion){
         <div class="exp-field"><span class="exp-lbl">Expediente</span><span class="exp-val" style="font-family:'DM Mono',monospace">${val(r.expediente)}</span></div>
         <div class="exp-field"><span class="exp-lbl">Fecha nacimiento</span><span class="exp-val">${fmtF(r.fechaNac)}</span></div>
         <div class="exp-field"><span class="exp-lbl">Aseguradora</span><span class="exp-val">${val(r.aseguradora)}</span></div>
+        ${!isUCI?`<div class="exp-field"><span class="exp-lbl">Proviene de Oncológica</span><span class="exp-val ${r.origenOncologica==='Sí'?'warn':''}">${val(r.origenOncologica)}</span></div>`:''}
         <div class="exp-field"><span class="exp-lbl">Alergias</span><span class="exp-val ${r.alergias?'alert':''}">${val(r.alergias)}</span></div>
         <div class="exp-field"><span class="exp-lbl">F. procedimiento</span><span class="exp-val">${fmtF(r.fechaProcedimiento)}</span></div>
         <div class="exp-field"><span class="exp-lbl">Procedimiento</span><span class="exp-val">${val(r.procedimiento)}</span></div>
@@ -692,7 +693,7 @@ function renderHosp(){
     tr.innerHTML='<td><b>'+(r.habitacion||'—')+'</b></td>'
       +'<td style="font-size:11px;white-space:nowrap">'+(r.fechaIngreso||'—')+'<br><span style="color:var(--gris4)">'+(r.horaIngreso||'')+'</span></td>'
       +'<td style="text-align:center;font-weight:600;color:var(--az2)">'+diasEstancia(r.fechaIngreso)+'</td>'
-      +'<td style="font-weight:600;color:var(--az2)">'+(r.nombre||'—')+'<br><span style="font-size:10px;font-weight:400;color:var(--gris4)">'+(r.sexo||'')+' · '+(r.edad||'')+'a</span></td>'
+      +'<td style="font-weight:600;color:var(--az2)">'+(r.nombre||'—')+(r.origenOncologica==='Sí'?' <span style="background:var(--morado3);color:var(--morado);padding:1px 6px;border-radius:99px;font-size:9px;font-weight:700">Onc</span>':'')+'<br><span style="font-size:10px;font-weight:400;color:var(--gris4)">'+(r.sexo||'')+' · '+(r.edad||'')+'a</span></td>'
       +'<td style="font-size:11px">'+(r.expediente||'—')+'</td>'
       +'<td style="font-size:11px;color:var(--gris5);max-width:180px">'+dx+'</td>'
       +'<td style="font-size:11px">'+med+'</td>'
@@ -773,6 +774,7 @@ function abrirModalPaciente(id,seccion){
 <div class="form-group"><label>Médico tratante</label><input id="p-medico" value="${rec.medico||''}"></div>
 <div class="form-group"><label>Especialidad médico</label><select id="p-espmedico">${espOpts}</select></div>
 <div class="form-group"><label>Aseguradora</label><input id="p-aseg" value="${rec.aseguradora||''}"></div>
+${!isUCI?`<div class="form-group"><label>¿Proviene de Oncológica?</label><select id="p-onco"><option value="">—</option><option${rec.origenOncologica==='Sí'?' selected':''}>Sí</option><option${rec.origenOncologica==='No'?' selected':''}>No</option></select></div>`:''}
 </div>
 <div class="section-lbl">Clínico</div>
 <div class="form-grid">
@@ -969,6 +971,7 @@ async function guardarPaciente(id,seccion){
     medico:document.getElementById('p-medico').value.trim(),
     especialidadMedico:document.getElementById('p-espmedico').value,
     aseguradora:document.getElementById('p-aseg').value.trim(),
+    origenOncologica:document.getElementById('p-onco')?document.getElementById('p-onco').value:(function(){ if(!id) return ''; const ex=DB[seccion].find(r=>r.id===id); return ex?(ex.origenOncologica||''):''; })(),
     diagnostico:document.getElementById('p-diag').value.trim(),
     procedimiento:document.getElementById('p-proc').value.trim(),
     fechaProcedimiento:document.getElementById('p-fproc').value,
@@ -1253,6 +1256,11 @@ function renderConcentrado(){
   const infCount={};
   infTodos.forEach(r=>{ if(r.infeccionTipo){ infCount[r.infeccionTipo]=(infCount[r.infeccionTipo]||0)+1; } });
 
+  const hoyOnco=dk(new Date());
+  function diasTotalOnco(r){ const fin=(r.fechaEgreso&&esFecha(r.fechaEgreso))?r.fechaEgreso:hoyOnco; const d=diasEntreFechas(r.fechaIngreso||r.fecha,fin); return d!==null?d:0; }
+  const oncoHosp=hosp.filter(r=>r.origenOncologica==='Sí');
+  const sumaDiasOnco=oncoHosp.reduce((s,r)=>s+diasTotalOnco(r),0);
+
   const defMes=DB.def.filter(r=>r.fecha>=inicioMes&&r.fecha<=finMes);
   const pctMort=todos.length>0?Math.round(defMes.length/todos.length*1000)/10:0;
 
@@ -1310,13 +1318,14 @@ function renderConcentrado(){
 
   try{ document.getElementById('concentrado-body').innerHTML=`
     <div style="font-size:16px;font-weight:600;color:var(--gris7);margin-bottom:14px">${MESES_NOM[mes]} ${anio} &nbsp;|&nbsp; <span style="font-size:12px;font-weight:400;color:var(--gris4)">${diasMes} días · ${todos.length} pacientes · ${totalEgresos} egresos</span></div>
-    <div class="stats-grid" style="grid-template-columns:repeat(6,1fr);margin-bottom:14px">
+    <div class="stats-grid" style="grid-template-columns:repeat(7,1fr);margin-bottom:14px">
       <div class="stat-card"><div class="stat-lbl">Ingresos Hosp</div><div class="stat-val" style="color:var(--az)">${ingresosHosp.length}</div><div class="stat-sub">${pdHosp} pac-día</div></div>
       <div class="stat-card"><div class="stat-lbl">Egresos Hosp</div><div class="stat-val" style="color:var(--verde)">${egresosHosp.length}</div><div class="stat-sub">Diferencia: ${ingresosHosp.length-egresosHosp.length>=0?'+':''}${ingresosHosp.length-egresosHosp.length}</div></div>
       <div class="stat-card"><div class="stat-lbl">Ingresos UCI</div><div class="stat-val" style="color:var(--rojo)">${ingresosUCI.length}</div><div class="stat-sub">${pdUCI} pac-día</div></div>
       <div class="stat-card"><div class="stat-lbl">Egresos UCI</div><div class="stat-val" style="color:var(--naranja)">${egresosUCI.length}</div><div class="stat-sub">Diferencia: ${ingresosUCI.length-egresosUCI.length>=0?'+':''}${ingresosUCI.length-egresosUCI.length}</div></div>
       <div class="stat-card"><div class="stat-lbl">Defunciones</div><div class="stat-val" style="color:var(--gris6)">${defMes.length}</div><div class="stat-sub">Mortalidad: ${pctMort}%</div></div>
       <div class="stat-card"><div class="stat-lbl">Infecciones</div><div class="stat-val" style="color:var(--morado)">${infTodos.length}</div><div class="stat-sub">H:${infHosp.length} · UCI:${infUCI.length}</div></div>
+      <div class="stat-card"><div class="stat-lbl">Oncológicos (Hosp)</div><div class="stat-val" style="color:var(--morado)">${oncoHosp.length}</div><div class="stat-sub">${sumaDiasOnco} días acumulados</div></div>
     </div>
     <div class="ind-grid-3" style="margin-bottom:12px">
       <div class="group-title">📊 Indicadores de Rendimiento Hospitalario</div>
@@ -1369,6 +1378,21 @@ function renderConcentrado(){
         ${Object.keys(infCount).length?Object.entries(infCount).sort((a,b)=>b[1]-a[1]).map(([tipo,n])=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--gris1)"><span style="font-size:12px;color:var(--gris6)">${tipo}</span><span style="background:var(--morado3);color:var(--morado);padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700">${n}</span></div>`).join(''):'<div style="font-size:12px;color:var(--gris4);padding:8px 0">Sin infecciones registradas</div>'}
         ${(()=>{ const agCount={}; infTodos.forEach(r=>{ if(r.infeccionAgente) agCount[r.infeccionAgente]=(agCount[r.infeccionAgente]||0)+1; }); return Object.keys(agCount).length?`<div style="margin-top:10px"><div style="font-size:10px;font-weight:700;color:var(--gris5);margin-bottom:5px;text-transform:uppercase;letter-spacing:.05em">Agentes identificados</div>${Object.entries(agCount).sort((a,b)=>b[1]-a[1]).map(([ag,n])=>`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--gris1)"><span style="font-size:11px;color:var(--gris6);font-style:italic">${ag}</span><span style="background:var(--amarillo3);color:var(--amarillo);padding:1px 7px;border-radius:99px;font-size:10px;font-weight:700">${n}</span></div>`).join('')}</div>`:''; })()}
         ${infTodos.length>0?`<div style="margin-top:10px"><div style="font-size:10px;font-weight:700;color:var(--gris5);margin-bottom:6px">PACIENTES AFECTADOS</div>${infTodos.map(r=>`<div style="font-size:11px;color:var(--gris6);padding:3px 0;border-bottom:1px solid var(--gris1)"><span style="background:${DB.hosp.some(h=>h.id===r.id)?'var(--az3)':'var(--rojo3)'};color:${DB.hosp.some(h=>h.id===r.id)?'var(--az2)':'var(--rojo)'};padding:1px 5px;border-radius:4px;font-size:10px;font-weight:600;margin-right:5px">${DB.hosp.some(h=>h.id===r.id)?'Hosp':'UCI'}</span>${r.nombre||'—'} · ${r.infeccionTipo||'Sin tipo'}${r.infeccionAgente?` · <span style="background:var(--amarillo3);color:var(--amarillo);padding:1px 5px;border-radius:4px;font-size:10px;font-weight:600">${r.infeccionAgente}</span>`:''}</div>`).join('')}</div>`:''}
+      </div>
+    </div>
+    <div class="ind-grid-2" style="margin-bottom:12px">
+      <div class="group-title">🎗️ Pacientes de Oncológica — Hospitalización</div>
+      <div class="ind-card">
+        <div class="ind-hdr"><div class="ind-dot" style="background:var(--morado)"></div><span class="ind-ttl">Total pacientes de Oncológica — ${MESES_NOM[mes]}</span></div>
+        <div style="display:flex;gap:16px;margin:8px 0 12px">
+          <div style="flex:1;text-align:center;background:var(--morado3);border-radius:8px;padding:10px"><div style="font-size:10px;font-weight:700;color:var(--morado)">PACIENTES</div><div style="font-size:28px;font-weight:700;color:var(--morado)">${oncoHosp.length}</div></div>
+          <div style="flex:1;text-align:center;background:var(--morado3);border-radius:8px;padding:10px"><div style="font-size:10px;font-weight:700;color:var(--morado)">DÍAS ACUMULADOS</div><div style="font-size:28px;font-weight:700;color:var(--morado)">${sumaDiasOnco}</div></div>
+        </div>
+        <div style="font-size:10px;color:var(--gris4)">Tasa: ${hosp.length>0?Math.round(oncoHosp.length/hosp.length*1000)/10:0}% de los pacientes de Hospitalización este mes</div>
+      </div>
+      <div class="ind-card">
+        <div class="ind-hdr"><div class="ind-dot" style="background:var(--morado)"></div><span class="ind-ttl">Días de hospitalización por paciente</span></div>
+        ${oncoHosp.length>0?`<div style="margin-top:4px">${oncoHosp.slice().sort((a,b)=>diasTotalOnco(b)-diasTotalOnco(a)).map(r=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--gris1)"><span style="font-size:12px;color:var(--gris6)">${r.nombre||'—'}${esFecha(r.fechaEgreso)?'':' <span style="color:var(--verde);font-size:10px;font-weight:700">· Activo</span>'}</span><span style="background:var(--morado3);color:var(--morado);padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700">${diasTotalOnco(r)} día${diasTotalOnco(r)!==1?'s':''}</span></div>`).join('')}</div>`:'<div style="font-size:12px;color:var(--gris4);padding:8px 0">Sin pacientes de oncológica registrados este mes</div>'}
       </div>
     </div>
     <div style="margin-bottom:12px">
