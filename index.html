@@ -586,6 +586,7 @@ function panelDetalle(r, seccion){
     </div>
     <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
       <button class="btn btn-ghost btn-sm" onclick="requirePin(()=>abrirModalTraslado(${r.id},'${seccion}'))">🔀 Trasladar a ${isUCI?'Hospitalización':'UCI/UCIM'}</button>
+      <button class="btn btn-ghost btn-sm" onclick="requirePin(()=>abrirModalEgreso(${r.id},'${seccion}'))">🚪 Egreso</button>
       <button class="btn btn-ghost btn-sm" onclick="requirePin(()=>abrirModalPaciente(${r.id},'${seccion}'))">✏ Editar paciente</button>
     </div>
   </div>`;
@@ -907,11 +908,11 @@ ${!isUCI?`<div class="form-group"><label>¿Proviene de Oncológica?</label><sele
 </div>
 <div class="section-lbl">Egreso</div>
 <div class="form-grid-3">
-<div class="form-group"><label>Destino del egreso</label><select id="p-destino"><option value="">—</option><option${rec.destinoEgreso==='UCI'?' selected':''}>UCI</option><option${rec.destinoEgreso==='UCIM'?' selected':''}>UCIM</option><option${rec.destinoEgreso==='Domicilio'?' selected':''}>Domicilio</option><option${rec.destinoEgreso==='Alta voluntaria'?' selected':''}>Alta voluntaria</option></select></div>
+<div class="form-group"><label>Destino del egreso</label><select id="p-destino"><option value="">—</option><option${rec.destinoEgreso==='Domicilio'?' selected':''}>Domicilio</option><option${rec.destinoEgreso==='Alta voluntaria'?' selected':''}>Alta voluntaria</option><option${rec.destinoEgreso==='Traslado'?' selected':''}>Traslado</option></select></div>
 <div class="form-group"><label>Fecha egreso</label><input type="date" id="p-feg" value="${rec.fechaEgreso&&esFecha(rec.fechaEgreso)?rec.fechaEgreso:''}"></div>
 <div class="form-group"><label>Hora egreso</label><input type="text" id="p-heg" value="${rec.horaEgreso||''}" placeholder="HH:MM" maxlength="5" style="font-family:'DM Mono',monospace" oninput="fmtHora(this)"></div>
 </div>
-<div class="form-actions">${id?`<button class="btn btn-ghost btn-sm" onclick="abrirModalTraslado(${id},'${seccion}')">🔀 Trasladar</button><button class="btn btn-danger btn-sm" onclick="eliminar(${id},'${seccion}','modalPac')">🗑 Eliminar</button>`:''}<button class="btn btn-ghost" onclick="closeModal('modalPac')">Cancelar</button><button class="btn btn-success" onclick="guardarPaciente(${id||0},'${seccion}')">✓ Guardar</button></div>`;
+<div class="form-actions">${id?`<button class="btn btn-ghost btn-sm" onclick="abrirModalTraslado(${id},'${seccion}')">🔀 Trasladar</button><button class="btn btn-ghost btn-sm" onclick="abrirModalEgreso(${id},'${seccion}')">🚪 Egreso</button><button class="btn btn-danger btn-sm" onclick="eliminar(${id},'${seccion}','modalPac')">🗑 Eliminar</button>`:''}<button class="btn btn-ghost" onclick="closeModal('modalPac')">Cancelar</button><button class="btn btn-success" onclick="guardarPaciente(${id||0},'${seccion}')">✓ Guardar</button></div>`;
   document.getElementById('modalPac').classList.add('open');
   setTimeout(()=>{
     [['p-iv1f','p-iv1ret','p-iv1-dias'],['p-iv2f','p-iv2ret','p-iv2-dias'],
@@ -987,6 +988,46 @@ async function confirmarTraslado(id,seccionOrigen){
   closeModal('modalPac');
   renderAll();
   toast(`✓ Paciente trasladado a ${seccionDestino==='uci'?'UCI/UCIM':'Hospitalización'}`);
+}
+
+// ══════════════════════════════════════════════════════════
+// EGRESO RÁPIDO — sin abrir el formulario completo del paciente
+// ══════════════════════════════════════════════════════════
+function abrirModalEgreso(id,seccion){
+  const rec=DB[seccion].find(r=>r.id===id);
+  if(!rec){ toast('Paciente no encontrado','error'); return; }
+  const ahora=new Date();
+  const horaActual=String(ahora.getHours()).padStart(2,'0')+':'+String(ahora.getMinutes()).padStart(2,'0');
+  const fechaActual=dk(ahora);
+  document.getElementById('modalPacContent').innerHTML=`<div class="modal-title">🚪 Registrar egreso<button class="modal-close" onclick="closeModal('modalPac')">×</button></div>
+<div style="font-size:13px;color:var(--gris6);margin-bottom:16px;line-height:1.5">
+  Se registrará el <b>egreso</b> de <b>${rec.nombre||'—'}</b> de ${seccion==='uci'?'UCI/UCIM':'Hospitalización'} (${seccion==='uci'?'sala':'hab.'} ${rec.habitacion||'—'}).
+</div>
+<div class="form-grid-3">
+  <div class="form-group"><label>Destino del egreso</label><select id="eg-destino"><option value="">—</option><option${rec.destinoEgreso==='Domicilio'?' selected':''}>Domicilio</option><option${rec.destinoEgreso==='Alta voluntaria'?' selected':''}>Alta voluntaria</option><option${rec.destinoEgreso==='Traslado'?' selected':''}>Traslado</option></select></div>
+  <div class="form-group"><label>Fecha egreso</label><input type="date" id="eg-fecha" value="${rec.fechaEgreso&&esFecha(rec.fechaEgreso)?rec.fechaEgreso:fechaActual}"></div>
+  <div class="form-group"><label>Hora egreso</label><input type="text" id="eg-hora" value="${rec.horaEgreso||horaActual}" placeholder="HH:MM" maxlength="5" style="font-family:'DM Mono',monospace" oninput="fmtHora(this)"></div>
+</div>
+<div class="form-actions"><button class="btn btn-ghost" onclick="abrirModalPaciente(${id},'${seccion}')">← Volver</button><button class="btn btn-success" onclick="confirmarEgreso(${id},'${seccion}')">✓ Confirmar egreso</button></div>`;
+  document.getElementById('modalPac').classList.add('open');
+}
+
+async function confirmarEgreso(id,seccion){
+  const rec=DB[seccion].find(r=>r.id===id);
+  if(!rec){ toast('Paciente no encontrado','error'); return; }
+  const destino=document.getElementById('eg-destino').value;
+  const fecha=document.getElementById('eg-fecha').value;
+  const hora=document.getElementById('eg-hora').value;
+  if(!fecha||!esFecha(fecha)){ toast('Ingresa una fecha de egreso válida','error'); return; }
+  const actualizado=Object.assign({},rec,{ fechaEgreso:fecha, horaEgreso:hora, destinoEgreso:destino });
+  const i=DB[seccion].findIndex(r=>r.id===id);
+  if(i>-1) DB[seccion][i]=actualizado;
+  showLoader('💾 Guardando egreso…');
+  await apiCall({action:'update',section:seccion,record:actualizado});
+  hideLoader();
+  closeModal('modalPac');
+  if(seccion==='hosp') renderHosp(); else renderUCI();
+  toast('✓ Egreso registrado');
 }
 
 async function guardarPaciente(id,seccion){
