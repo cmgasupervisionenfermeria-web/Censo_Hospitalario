@@ -1242,7 +1242,7 @@ function renderConcentrado(){
   const mes=parseInt(document.getElementById('con-mes').value);
   const anio=parseInt(document.getElementById('con-anio').value);
   const cuerpo=document.getElementById('concentrado-body');
-  if(!DB.hosp.length && !DB.uci.length){
+  if(!DB.hosp.length && !DB.uci.length && !DB.endo.length && !DB.def.length){
     cuerpo.innerHTML='<div style="padding:24px;text-align:center;color:var(--gris4)">⌛ Cargando datos... Si persiste, presiona <b>Sync</b> en la esquina superior derecha.</div>';
     return;
   }
@@ -1384,11 +1384,21 @@ function renderConcentrado(){
     return {esp:esp,ingH:c.ingH,egH:c.egH,ingU:c.ingU,egU:c.egU,totIng:totIng,totEg:totEg,dif:totIng-totEg};
   }).sort(function(a,b){ return (b.totIng+b.totEg)-(a.totIng+a.totEg); });
 
+  const endoMes=DB.endo.filter(function(r){ const f=r.fecha||r.fechaIngreso||''; return f>=inicioMes&&f<=finMes; });
+  const endoSala={}, endoTipo={}, endoEsp={};
+  endoMes.forEach(function(r){
+    const s=r.sala||'Sin especificar'; endoSala[s]=(endoSala[s]||0)+1;
+    const t=r.tipo||'Sin especificar'; endoTipo[t]=(endoTipo[t]||0)+1;
+    const e=r.especialidad||'Sin especialidad'; endoEsp[e]=(endoEsp[e]||0)+1;
+  });
+  const endoTqxVals=endoMes.map(function(r){ return parseFloat(r.tiempoQx); }).filter(function(n){ return !isNaN(n)&&n>0; });
+  const endoTqxProm=endoTqxVals.length?Math.round(endoTqxVals.reduce(function(s,n){ return s+n; },0)/endoTqxVals.length):null;
+
   function ic(color,titulo,formula,valor,desc,barPct){ return `<div class="ind-card"><div class="ind-hdr"><div class="ind-dot" style="background:${color}"></div><span class="ind-ttl">${titulo}</span></div>${formula?`<div style="font-size:9px;color:var(--gris4);font-family:'DM Mono',monospace;margin-bottom:6px">${formula}</div>`:''}<div class="ind-val" style="color:${color}">${valor!==null&&valor!==undefined?valor:'—'}</div><div class="ind-desc">${desc}</div><div class="ind-bar"><div class="ind-fill" style="width:${Math.min(barPct||0,100)}%;background:${color}"></div></div></div>`; }
 
   try{ document.getElementById('concentrado-body').innerHTML=`
     <div style="font-size:16px;font-weight:600;color:var(--gris7);margin-bottom:14px">${MESES_NOM[mes]} ${anio} &nbsp;|&nbsp; <span style="font-size:12px;font-weight:400;color:var(--gris4)">${diasMes} días · ${todos.length} pacientes · ${totalEgresos} egresos</span></div>
-    <div class="stats-grid" style="grid-template-columns:repeat(7,1fr);margin-bottom:14px">
+    <div class="stats-grid" style="grid-template-columns:repeat(8,1fr);margin-bottom:14px">
       <div class="stat-card"><div class="stat-lbl">Ingresos Hosp</div><div class="stat-val" style="color:var(--az)">${ingresosHosp.length}</div><div class="stat-sub">${pdHosp} pac-día</div></div>
       <div class="stat-card"><div class="stat-lbl">Egresos Hosp</div><div class="stat-val" style="color:var(--verde)">${egresosHosp.length}</div><div class="stat-sub">Diferencia: ${ingresosHosp.length-egresosHosp.length>=0?'+':''}${ingresosHosp.length-egresosHosp.length}</div></div>
       <div class="stat-card"><div class="stat-lbl">Ingresos UCI</div><div class="stat-val" style="color:var(--rojo)">${ingresosUCI.length}</div><div class="stat-sub">${pdUCI} pac-día</div></div>
@@ -1396,6 +1406,7 @@ function renderConcentrado(){
       <div class="stat-card"><div class="stat-lbl">Defunciones</div><div class="stat-val" style="color:var(--gris6)">${defMes.length}</div><div class="stat-sub">Mortalidad: ${pctMort}%</div></div>
       <div class="stat-card"><div class="stat-lbl">Infecciones</div><div class="stat-val" style="color:var(--morado)">${infTodos.length}</div><div class="stat-sub">H:${infHosp.length} · UCI:${infUCI.length}</div></div>
       <div class="stat-card"><div class="stat-lbl">Oncológicos (Hosp)</div><div class="stat-val" style="color:var(--morado)">${oncoHosp.length}</div><div class="stat-sub">${sumaDiasOnco} días acumulados</div></div>
+      <div class="stat-card"><div class="stat-lbl">Endo/Urgencias</div><div class="stat-val" style="color:var(--cyan)">${endoMes.length}</div><div class="stat-sub">Endo:${endoSala['Endoscopia']||0} · Urg:${endoSala['Urgencias']||0}</div></div>
     </div>
     <div class="ind-grid-3" style="margin-bottom:12px">
       <div class="group-title">📊 Indicadores de Rendimiento Hospitalario</div>
@@ -1431,6 +1442,24 @@ function renderConcentrado(){
         }).join(''):'<tr><td colspan="8" style="text-align:center;color:var(--gris4);padding:16px">Sin movimientos con especialidad registrada este mes</td></tr>'}</tbody>
       </table></div></div>
       <div style="font-size:10px;color:var(--gris4);margin-top:6px">Basado en la especialidad del médico tratante capturada en cada ingreso/egreso. "Diferencia" = total ingresos − total egresos (positivo = más entradas que salidas en el mes).</div>
+    </div>
+    <div class="ind-grid-2" style="margin-bottom:12px">
+      <div class="group-title">🔬 Endoscopia / Urgencias — ${MESES_NOM[mes]} ${anio}</div>
+      <div class="ind-card">
+        <div class="ind-hdr"><div class="ind-dot" style="background:var(--cyan)"></div><span class="ind-ttl">Total procedimientos — ${MESES_NOM[mes]}</span></div>
+        <div style="display:flex;gap:16px;margin:8px 0 12px">
+          <div style="flex:1;text-align:center;background:var(--cyan3);border-radius:8px;padding:10px"><div style="font-size:10px;font-weight:700;color:var(--cyan)">ENDOSCOPIA</div><div style="font-size:28px;font-weight:700;color:var(--cyan)">${endoSala['Endoscopia']||0}</div></div>
+          <div style="flex:1;text-align:center;background:var(--naranja3);border-radius:8px;padding:10px"><div style="font-size:10px;font-weight:700;color:var(--naranja)">URGENCIAS</div><div style="font-size:28px;font-weight:700;color:var(--naranja)">${endoSala['Urgencias']||0}</div></div>
+          <div style="flex:1;text-align:center;background:var(--gris1);border-radius:8px;padding:10px"><div style="font-size:10px;font-weight:700;color:var(--gris6)">TOTAL</div><div style="font-size:28px;font-weight:700;color:var(--gris6)">${endoMes.length}</div></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--gris1);font-size:12px"><span style="color:var(--gris6)">Programados</span><span style="font-weight:700;color:var(--verde)">${endoTipo['Programado']||0}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px"><span style="color:var(--gris6)">Urgentes</span><span style="font-weight:700;color:var(--rojo)">${endoTipo['Urgente']||0}</span></div>
+        <div style="font-size:10px;color:var(--gris4);margin-top:8px">Tiempo quirúrgico promedio: ${endoTqxProm!==null?endoTqxProm+' min':'— (sin datos de tiempo)'}</div>
+      </div>
+      <div class="ind-card">
+        <div class="ind-hdr"><div class="ind-dot" style="background:var(--cyan)"></div><span class="ind-ttl">Procedimientos por especialidad</span></div>
+        ${Object.keys(endoEsp).length?Object.entries(endoEsp).sort((a,b)=>b[1]-a[1]).map(([esp,n])=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--gris1)"><span style="font-size:12px;color:var(--gris6)">${esp}</span><span style="background:var(--cyan3);color:var(--cyan);padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700">${n}</span></div>`).join(''):'<div style="font-size:12px;color:var(--gris4);padding:8px 0">Sin procedimientos registrados este mes</div>'}
+      </div>
     </div>
     <div class="ind-grid-2" style="margin-bottom:12px">
       <div class="group-title">🦠 Infecciones Asociadas a la Atención</div>
