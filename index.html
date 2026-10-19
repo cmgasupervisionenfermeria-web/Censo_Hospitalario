@@ -1557,8 +1557,34 @@ function renderConcentrado(){
     },0);
   }
   const pdHosp=pacDia(hosp), pdUCI=pacDia(uci), pdTodos=pdHosp+pdUCI;
-  const ocupHosp=CAMAS_HOSP*diasMes>0?Math.round(pdHosp/(CAMAS_HOSP*diasMes)*1000)/10:null;
-  const ocupUCI=(CAMAS_UCI+CAMAS_UCIM)*diasMes>0?Math.round(pdUCI/((CAMAS_UCI+CAMAS_UCIM)*diasMes)*1000)/10:null;
+
+  // Días-cama bloqueados en el mes (mantenimiento / familiares de paciente
+  // de Terapia) — un bloqueo sin fechaDesbloqueo todavía se cuenta como
+  // bloqueado hasta fin de mes, igual que pacDia() asume que un paciente
+  // sin egreso sigue internado hasta fin de mes.
+  function pacDiaBloqueo(arr){
+    return arr.reduce((sum,b)=>{
+      const ini=b.fechaBloqueo||''; if(!ini||!esFecha(ini)) return sum;
+      const fin=esFecha(b.fechaDesbloqueo)?b.fechaDesbloqueo:finMes;
+      const ie=ini<inicioMes?inicioMes:ini; const fe=fin>finMes?finMes:fin;
+      const d=diasEntreFechas(ie,fe); return sum+(d!==null?Math.max(0,d+1):0);
+    },0);
+  }
+  const dcBloqHosp=pacDiaBloqueo((DB.bloqueos||[]).filter(b=>b.seccion==='hosp'));
+  const dcBloqUci=pacDiaBloqueo((DB.bloqueos||[]).filter(b=>b.seccion==='uci'));
+
+  // Días-Cama Disponibles = camas censables × días del mes, descontando los
+  // días-cama que estuvieron bloqueados (una cama bloqueada no está
+  // realmente disponible para pacientes ese día). Días-Cama Ocupados es
+  // directamente pdHosp/pdUCI/pdTodos (ya calculado arriba: 1 paciente
+  // ocupando 1 cama un día = 1 día-cama).
+  const dcDisponiblesHosp=Math.max(0,CAMAS_HOSP*diasMes-dcBloqHosp);
+  const dcDisponiblesUci=Math.max(0,(CAMAS_UCI+CAMAS_UCIM)*diasMes-dcBloqUci);
+  const dcDisponiblesTotal=dcDisponiblesHosp+dcDisponiblesUci;
+  const dcOcupadosTotal=pdTodos;
+
+  const ocupHosp=dcDisponiblesHosp>0?Math.round(pdHosp/dcDisponiblesHosp*1000)/10:null;
+  const ocupUCI=dcDisponiblesUci>0?Math.round(pdUCI/dcDisponiblesUci*1000)/10:null;
   const sumaEstancia=[...egresosHosp,...egresosUCI].reduce((s,r)=>{ const d=diasEntreFechas(r.fechaIngreso||r.fecha,r.fechaEgreso); return s+(d!==null?Math.max(1,d):0); },0);
   const estanciaPromedio=totalEgresos>0?Math.round(sumaEstancia/totalEgresos*10)/10:null;
   const rotacion=Math.round(egresosHosp.length/CAMAS_HOSP*10)/10;
@@ -1697,10 +1723,31 @@ function renderConcentrado(){
       <div class="stat-card"><div class="stat-lbl">Infecciones</div><div class="stat-val" style="color:var(--morado)">${infTodos.length}</div><div class="stat-sub">H:${infHosp.length} · UCI:${infUCI.length}</div></div>
       <div class="stat-card"><div class="stat-lbl">Oncológicos (Hosp)</div><div class="stat-val" style="color:var(--morado)">${oncoHosp.length}</div><div class="stat-sub">${sumaDiasOnco} días acumulados</div></div>
     </div>
+    <div class="ind-grid-2" style="margin-bottom:12px">
+      <div class="group-title">🛏 Días-Cama — ${MESES_NOM[mes]} ${anio}</div>
+      <div class="ind-card">
+        <div class="ind-hdr"><div class="ind-dot" style="background:var(--az)"></div><span class="ind-ttl">Días-Cama Disponibles</span></div>
+        <div style="display:flex;gap:16px;margin:8px 0 12px">
+          <div style="flex:1;text-align:center;background:var(--az3);border-radius:8px;padding:10px"><div style="font-size:10px;font-weight:700;color:var(--az2)">HOSPITALIZACIÓN</div><div style="font-size:28px;font-weight:700;color:var(--az2)">${dcDisponiblesHosp}</div></div>
+          <div style="flex:1;text-align:center;background:var(--rojo3);border-radius:8px;padding:10px"><div style="font-size:10px;font-weight:700;color:var(--rojo)">UCI / UCIM</div><div style="font-size:28px;font-weight:700;color:var(--rojo)">${dcDisponiblesUci}</div></div>
+          <div style="flex:1;text-align:center;background:var(--gris1);border-radius:8px;padding:10px"><div style="font-size:10px;font-weight:700;color:var(--gris6)">TOTAL</div><div style="font-size:28px;font-weight:700;color:var(--gris6)">${dcDisponiblesTotal}</div></div>
+        </div>
+        <div style="font-size:10px;color:var(--gris4)">Camas censables × días del mes, descontando los días que una cama estuvo bloqueada (mantenimiento/familiares). Hosp: ${CAMAS_HOSP}×${diasMes}${dcBloqHosp?' − '+dcBloqHosp+' bloqueados':''} · UCI/UCIM: ${CAMAS_UCI+CAMAS_UCIM}×${diasMes}${dcBloqUci?' − '+dcBloqUci+' bloqueados':''}.</div>
+      </div>
+      <div class="ind-card">
+        <div class="ind-hdr"><div class="ind-dot" style="background:var(--verde)"></div><span class="ind-ttl">Días-Cama Ocupados</span></div>
+        <div style="display:flex;gap:16px;margin:8px 0 12px">
+          <div style="flex:1;text-align:center;background:var(--az3);border-radius:8px;padding:10px"><div style="font-size:10px;font-weight:700;color:var(--az2)">HOSPITALIZACIÓN</div><div style="font-size:28px;font-weight:700;color:var(--az2)">${pdHosp}</div></div>
+          <div style="flex:1;text-align:center;background:var(--rojo3);border-radius:8px;padding:10px"><div style="font-size:10px;font-weight:700;color:var(--rojo)">UCI / UCIM</div><div style="font-size:28px;font-weight:700;color:var(--rojo)">${pdUCI}</div></div>
+          <div style="flex:1;text-align:center;background:var(--verde3);border-radius:8px;padding:10px"><div style="font-size:10px;font-weight:700;color:var(--verde)">TOTAL</div><div style="font-size:28px;font-weight:700;color:var(--verde)">${pdTodos}</div></div>
+        </div>
+        <div style="font-size:10px;color:var(--gris4)">Suma de días que cada paciente activo estuvo presente en el mes (1 paciente en 1 cama, 1 día = 1 día-cama). Equivale al ${dcDisponiblesTotal>0?Math.round(dcOcupadosTotal/dcDisponiblesTotal*1000)/10:0}% de los días-cama disponibles.</div>
+      </div>
+    </div>
     <div class="ind-grid-3" style="margin-bottom:12px">
       <div class="group-title">📊 Indicadores de Rendimiento Hospitalario</div>
-      ${ic('var(--az)','Ocupación Hospitalaria (Piso)','(pac-día ÷ camas×días) × 100',ocupHosp!==null?ocupHosp+'%':'—',`${pdHosp} pac-día ÷ (${CAMAS_HOSP}×${diasMes}). Meta: 80–85%`,ocupHosp)}
-      ${ic('var(--rojo)','Ocupación UCI / UCIM','(pac-día ÷ camas×días) × 100',ocupUCI!==null?ocupUCI+'%':'—',`${pdUCI} pac-día ÷ (${CAMAS_UCI+CAMAS_UCIM}×${diasMes}). Meta: 70–80%`,ocupUCI)}
+      ${ic('var(--az)','Ocupación Hospitalaria (Piso)','(pac-día ÷ días-cama disponibles) × 100',ocupHosp!==null?ocupHosp+'%':'—',`${pdHosp} pac-día ÷ ${dcDisponiblesHosp} días-cama disponibles (${CAMAS_HOSP}×${diasMes}${dcBloqHosp?' − '+dcBloqHosp+' bloqueados':''}). Meta: 80–85%`,ocupHosp)}
+      ${ic('var(--rojo)','Ocupación UCI / UCIM','(pac-día ÷ días-cama disponibles) × 100',ocupUCI!==null?ocupUCI+'%':'—',`${pdUCI} pac-día ÷ ${dcDisponiblesUci} días-cama disponibles (${CAMAS_UCI+CAMAS_UCIM}×${diasMes}${dcBloqUci?' − '+dcBloqUci+' bloqueados':''}). Meta: 70–80%`,ocupUCI)}
       ${ic('var(--verde)','Estancia Promedio','Σ días egresados ÷ total egresos',estanciaPromedio!==null?estanciaPromedio+' días':'—',`${sumaEstancia} días ÷ ${totalEgresos} egresos`,estanciaPromedio?Math.min(estanciaPromedio/10*100,100):0)}
       ${ic('var(--az2)','Índice de Rotación (Piso)','egresos piso ÷ 18 camas',rotacion+' veces',`${egresosHosp.length} egresos ÷ ${CAMAS_HOSP} camas. Meta ≥3/mes`,Math.min(rotacion/5*100,100))}
       ${ic('var(--cyan)','Intervalo de Sustitución','horas entre egreso e ingreso — misma hab.',intervaloSust!==null?intervaloSust+' h':'—',intervaloSust!==null?'Promedio parejas egreso-ingreso consecutivos. Meta <4h':'Requiere horaEgreso y horaIngreso registradas.',intervaloSust?Math.min(intervaloSust/8*100,100):0)}
