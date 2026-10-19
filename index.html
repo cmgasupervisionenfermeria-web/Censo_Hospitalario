@@ -467,6 +467,12 @@ function normalizarRegistro(rec){
 // Concentrado y Buscador, que avisan "Cargando historial…" si se
 // abren antes de que termine.
 let historialCargado=false;
+// Pacientes por especialidad del Concentrado actualmente en pantalla —
+// se recalcula en cada renderConcentrado() y lo usa verPacientesEspecialidad()
+// al hacer clic en una especialidad de la tabla, para no tener que volver
+// a filtrar ni pasar el listado completo por un atributo HTML.
+let concentradoEspData={};
+function escAttr(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
 let concentradoEsperandoHistorial=false;
 let buscarEsperandoHistorial=false;
 
@@ -1710,6 +1716,25 @@ function renderConcentrado(){
     return {esp:esp,ingH:c.ingH,egH:c.egH,ingU:c.ingU,egU:c.egU,totIng:totIng,totEg:totEg,dif:totIng-totEg};
   }).sort(function(a,b){ return (b.totIng+b.totEg)-(a.totIng+a.totEg); });
 
+  // Listado de pacientes (habitación/sala, nombre, fecha ingreso, fecha
+  // egreso) por especialidad, para el detalle que se abre al hacer clic
+  // en una especialidad de la tabla — son los pacientes de "todos"
+  // (presentes en el mes consultado) agrupados igual que espMap.
+  const espPacientesMap={};
+  function addEspPacientes(arr,seccion){
+    arr.forEach(function(r){
+      const esp=r.especialidadMedico||'Sin especialidad';
+      if(!espPacientesMap[esp]) espPacientesMap[esp]=[];
+      espPacientesMap[esp].push({seccion:seccion,habitacion:r.habitacion,nombre:r.nombre,fechaIngreso:r.fechaIngreso||r.fecha||'',fechaEgreso:r.fechaEgreso||''});
+    });
+  }
+  addEspPacientes(hosp,'hosp');
+  addEspPacientes(uci,'uci');
+  Object.keys(espPacientesMap).forEach(function(esp){
+    espPacientesMap[esp].sort(function(a,b){ return (a.fechaIngreso||'').localeCompare(b.fechaIngreso||''); });
+  });
+  concentradoEspData=espPacientesMap;
+
   function ic(color,titulo,formula,valor,desc,barPct){ return `<div class="ind-card"><div class="ind-hdr"><div class="ind-dot" style="background:${color}"></div><span class="ind-ttl">${titulo}</span></div>${formula?`<div style="font-size:9px;color:var(--gris4);font-family:'DM Mono',monospace;margin-bottom:6px">${formula}</div>`:''}<div class="ind-val" style="color:${color}">${valor!==null&&valor!==undefined?valor:'—'}</div><div class="ind-desc">${desc}</div><div class="ind-bar"><div class="ind-fill" style="width:${Math.min(barPct||0,100)}%;background:${color}"></div></div></div>`; }
 
   try{ document.getElementById('concentrado-body').innerHTML=`
@@ -1767,7 +1792,7 @@ function renderConcentrado(){
         </tr></thead>
         <tbody>${espRows.length?espRows.map(function(r){
           const difColor=r.dif>0?'var(--az2)':r.dif<0?'var(--verde)':'var(--gris5)';
-          return `<tr><td style="font-weight:600">${r.esp}</td>`
+          return `<tr><td style="font-weight:600;color:var(--az);cursor:pointer" data-esp="${escAttr(r.esp)}" onclick="verPacientesEspecialidad(this.dataset.esp)" title="Ver pacientes de esta especialidad">${r.esp} 🔍</td>`
             +`<td style="text-align:center;color:var(--az2);font-weight:600">${r.ingH||'—'}</td>`
             +`<td style="text-align:center;color:var(--verde);font-weight:600">${r.egH||'—'}</td>`
             +`<td style="text-align:center;color:var(--rojo);font-weight:600">${r.ingU||'—'}</td>`
@@ -1777,7 +1802,7 @@ function renderConcentrado(){
             +`<td style="text-align:center;font-weight:700;color:${difColor}">${r.dif>0?'+':''}${r.dif}</td></tr>`;
         }).join(''):'<tr><td colspan="8" style="text-align:center;color:var(--gris4);padding:16px">Sin movimientos con especialidad registrada este mes</td></tr>'}</tbody>
       </table></div></div>
-      <div style="font-size:10px;color:var(--gris4);margin-top:6px">Basado en la especialidad del médico tratante capturada en cada ingreso/egreso. "Diferencia" = total ingresos − total egresos (positivo = más entradas que salidas en el mes).</div>
+      <div style="font-size:10px;color:var(--gris4);margin-top:6px">Basado en la especialidad del médico tratante capturada en cada ingreso/egreso. "Diferencia" = total ingresos − total egresos (positivo = más entradas que salidas en el mes). Haz clic en una especialidad para ver el listado de pacientes.</div>
     </div>
     <div class="ind-grid-2" style="margin-bottom:12px">
       <div class="group-title">🦠 Infecciones Detectadas</div>
@@ -1894,6 +1919,32 @@ function renderConcentrado(){
         </div>
       </div>
     </div>`; }catch(e){ document.getElementById('concentrado-body').innerHTML='<div style="padding:20px;color:var(--rojo);font-weight:600">⚠ Error en concentrado: '+e.message+'</div><pre style="font-size:10px;padding:12px">'+e.stack+'</pre>'; }
+}
+
+// Detalle de pacientes al hacer clic en una especialidad de la tabla
+// "Ingresos y Egresos por Especialidad" del Concentrado — reusa el
+// contenedor modalPac solo para mostrar el listado (no es un formulario).
+function verPacientesEspecialidad(esp){
+  const lista=concentradoEspData[esp]||[];
+  const filasHTML=lista.length
+    ? lista.map(function(p){
+        const egresoHTML=p.fechaEgreso&&esFecha(p.fechaEgreso)?p.fechaEgreso:'<span style="color:var(--verde);font-weight:600">Activo</span>';
+        return `<tr>
+          <td style="font-weight:600">${p.seccion==='uci'?'Sala':'Hab.'} ${p.habitacion||'—'}</td>
+          <td>${p.nombre||'—'}</td>
+          <td>${p.fechaIngreso||'—'}</td>
+          <td>${egresoHTML}</td>
+        </tr>`;
+      }).join('')
+    : '<tr><td colspan="4" style="text-align:center;color:var(--gris4);padding:16px">Sin pacientes</td></tr>';
+  document.getElementById('modalPacContent').innerHTML=`<div class="modal-title">🩺 ${esp} — pacientes del mes<button class="modal-close" onclick="closeModal('modalPac')">×</button></div>
+<div style="font-size:12px;color:var(--gris5);margin-bottom:10px">${lista.length} paciente${lista.length!==1?'s':''} con esta especialidad presentes durante el mes consultado en el Concentrado.</div>
+<div class="card" style="margin-bottom:0"><div class="pac-table-wrap"><table>
+  <thead><tr><th>Hab./Sala</th><th>Nombre</th><th>Fecha ingreso</th><th>Fecha egreso</th></tr></thead>
+  <tbody>${filasHTML}</tbody>
+</table></div></div>
+<div class="form-actions"><button class="btn btn-ghost" onclick="closeModal('modalPac')">Cerrar</button></div>`;
+  document.getElementById('modalPac').classList.add('open');
 }
 
 function editarPaciente(btn){
