@@ -472,6 +472,10 @@ let historialCargado=false;
 // al hacer clic en una especialidad de la tabla, para no tener que volver
 // a filtrar ni pasar el listado completo por un atributo HTML.
 let concentradoEspData={};
+// Detalle de pacientes detrás de las tarjetas de Caídas/LPP/Mortalidad del
+// Concentrado — se recalcula en cada renderConcentrado() y lo usa
+// verDetalleIndicador() al hacer clic en una de esas tres tarjetas.
+let concentradoDetalleData={caidas:[],lpp:[],mortalidad:[]};
 function escAttr(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
 let concentradoEsperandoHistorial=false;
 let buscarEsperandoHistorial=false;
@@ -1643,14 +1647,23 @@ function renderConcentrado(){
     return esFecha(f)&&f>=inicioMes&&f<=finMes;
   }
 
-  const nCaidasH=hosp.filter(r=>r['caídaEvento']==='Sí'&&ocurrioEnMes(r['caídaFecha'],r)).length;
-  const nCaidasU=uci.filter(r=>r['caídaEvento']==='Sí'&&ocurrioEnMes(r['caídaFecha'],r)).length;
-  const nCaidas=nCaidasH+nCaidasU;
+  const caidasHArr=hosp.filter(r=>r['caídaEvento']==='Sí'&&ocurrioEnMes(r['caídaFecha'],r));
+  const caidasUArr=uci.filter(r=>r['caídaEvento']==='Sí'&&ocurrioEnMes(r['caídaFecha'],r));
+  const nCaidasH=caidasHArr.length, nCaidasU=caidasUArr.length, nCaidas=nCaidasH+nCaidasU;
   const tasaCaidas=pdTodos>0?Math.round(nCaidas/pdTodos*1000*100)/100:null;
+  const caidasDetalle=[...caidasHArr.map(r=>({seccion:'hosp',habitacion:r.habitacion,nombre:r.nombre,fecha:fechaEvento(r['caídaFecha'],r)})),
+                        ...caidasUArr.map(r=>({seccion:'uci',habitacion:r.habitacion,nombre:r.nombre,fecha:fechaEvento(r['caídaFecha'],r)}))]
+                        .sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||''));
   // LPP no tiene campo de fecha propia (no existe "lppFecha" en el modelo),
-  // así que se atribuye al mes de ingreso del paciente.
-  const nLPP=todos.filter(r=>r.lppEvento==='Sí'&&ocurrioEnMes('',r)).length;
+  // así que se atribuye al mes de ingreso del paciente — el detalle usa esa
+  // misma fecha de ingreso como aproximación, aclarado en el modal.
+  const lppHArr=hosp.filter(r=>r.lppEvento==='Sí'&&ocurrioEnMes('',r));
+  const lppUArr=uci.filter(r=>r.lppEvento==='Sí'&&ocurrioEnMes('',r));
+  const nLPP=lppHArr.length+lppUArr.length;
   const tasaLPP=todos.length>0?Math.round(nLPP/todos.length*1000)/10:null;
+  const lppDetalle=[...lppHArr.map(r=>({seccion:'hosp',habitacion:r.habitacion,nombre:r.nombre,fecha:fechaEvento('',r)})),
+                     ...lppUArr.map(r=>({seccion:'uci',habitacion:r.habitacion,nombre:r.nombre,fecha:fechaEvento('',r)}))]
+                     .sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||''));
 
   const infHosp=hosp.filter(r=>r.infeccionEvento==='Sí'&&ocurrioEnMes(r.infeccionFecha,r));
   const infUCI=uci.filter(r=>r.infeccionEvento==='Sí'&&ocurrioEnMes(r.infeccionFecha,r));
@@ -1665,6 +1678,10 @@ function renderConcentrado(){
 
   const defMes=DB.def.filter(r=>r.fecha>=inicioMes&&r.fecha<=finMes);
   const pctMort=todos.length>0?Math.round(defMes.length/todos.length*1000)/10:0;
+  const mortalidadDetalle=defMes.map(r=>({servicio:r.servicio||'—',nombre:r.nombre,fecha:esFecha(r.fechaDefuncion)?r.fechaDefuncion:r.fecha}))
+                                 .sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||''));
+
+  concentradoDetalleData={caidas:caidasDetalle,lpp:lppDetalle,mortalidad:mortalidadDetalle};
 
   const hoyStr=dk(new Date());
   const fechaRefH=finMes<=hoyStr?finMes:hoyStr;
@@ -1735,7 +1752,7 @@ function renderConcentrado(){
   });
   concentradoEspData=espPacientesMap;
 
-  function ic(color,titulo,formula,valor,desc,barPct){ return `<div class="ind-card"><div class="ind-hdr"><div class="ind-dot" style="background:${color}"></div><span class="ind-ttl">${titulo}</span></div>${formula?`<div style="font-size:9px;color:var(--gris4);font-family:'DM Mono',monospace;margin-bottom:6px">${formula}</div>`:''}<div class="ind-val" style="color:${color}">${valor!==null&&valor!==undefined?valor:'—'}</div><div class="ind-desc">${desc}</div><div class="ind-bar"><div class="ind-fill" style="width:${Math.min(barPct||0,100)}%;background:${color}"></div></div></div>`; }
+  function ic(color,titulo,formula,valor,desc,barPct,onclickFn){ return `<div class="ind-card"${onclickFn?` style="cursor:pointer" onclick="${onclickFn}" title="Ver detalle de pacientes"`:''}><div class="ind-hdr"><div class="ind-dot" style="background:${color}"></div><span class="ind-ttl">${titulo}${onclickFn?' 🔍':''}</span></div>${formula?`<div style="font-size:9px;color:var(--gris4);font-family:'DM Mono',monospace;margin-bottom:6px">${formula}</div>`:''}<div class="ind-val" style="color:${color}">${valor!==null&&valor!==undefined?valor:'—'}</div><div class="ind-desc">${desc}</div><div class="ind-bar"><div class="ind-fill" style="width:${Math.min(barPct||0,100)}%;background:${color}"></div></div></div>`; }
 
   try{ document.getElementById('concentrado-body').innerHTML=`
     <div style="font-size:16px;font-weight:600;color:var(--gris7);margin-bottom:14px">${MESES_NOM[mes]} ${anio} &nbsp;|&nbsp; <span style="font-size:12px;font-weight:400;color:var(--gris4)">${diasMes} días · ${todos.length} pacientes · ${totalEgresos} egresos</span></div>
@@ -1780,9 +1797,9 @@ function renderConcentrado(){
     </div>
     <div class="ind-grid-3" style="margin-bottom:12px">
       <div class="group-title">⚠ Seguridad del Paciente</div>
-      ${ic('var(--naranja2)','Tasa de Caídas','(caídas ÷ pacientes-día) × 1000',tasaCaidas!==null?tasaCaidas+' / 1000 pac-día':'—',`${nCaidas} caída${nCaidas!==1?'s':''} (H:${nCaidasH} UCI:${nCaidasU}) en ${pdTodos} pac-día. Meta <1`,Math.min(tasaCaidas||0,100))}
-      ${ic('var(--rojo)','Tasa de LPP','(LPP ÷ pacientes) × 100',tasaLPP!==null?tasaLPP+'%':'—',`${nLPP} LPP en ${todos.length} pacientes. Meta <2%`,Math.min(tasaLPP||0,100))}
-      ${ic('var(--gris5)','Mortalidad','(defunciones ÷ pacientes) × 100',pctMort+'%',`${defMes.length} defunciones de ${todos.length} pacientes`,Math.min(pctMort*5,100))}
+      ${ic('var(--naranja2)','Tasa de Caídas','(caídas ÷ pacientes-día) × 1000',tasaCaidas!==null?tasaCaidas+' / 1000 pac-día':'—',`${nCaidas} caída${nCaidas!==1?'s':''} (H:${nCaidasH} UCI:${nCaidasU}) en ${pdTodos} pac-día. Meta <1`,Math.min(tasaCaidas||0,100),"verDetalleIndicador('caidas')")}
+      ${ic('var(--rojo)','Tasa de LPP','(LPP ÷ pacientes) × 100',tasaLPP!==null?tasaLPP+'%':'—',`${nLPP} LPP en ${todos.length} pacientes. Meta <2%`,Math.min(tasaLPP||0,100),"verDetalleIndicador('lpp')")}
+      ${ic('var(--gris5)','Mortalidad','(defunciones ÷ pacientes) × 100',pctMort+'%',`${defMes.length} defunciones de ${todos.length} pacientes`,Math.min(pctMort*5,100),"verDetalleIndicador('mortalidad')")}
     </div>
     <div style="margin-bottom:12px">
       <div class="group-title">🩺 Ingresos y Egresos por Especialidad — ${MESES_NOM[mes]} ${anio}</div>
@@ -1941,6 +1958,34 @@ function verPacientesEspecialidad(esp){
 <div style="font-size:12px;color:var(--gris5);margin-bottom:10px">${lista.length} paciente${lista.length!==1?'s':''} con esta especialidad presentes durante el mes consultado en el Concentrado.</div>
 <div class="card" style="margin-bottom:0"><div class="pac-table-wrap"><table>
   <thead><tr><th>Hab./Sala</th><th>Nombre</th><th>Fecha ingreso</th><th>Fecha egreso</th></tr></thead>
+  <tbody>${filasHTML}</tbody>
+</table></div></div>
+<div class="form-actions"><button class="btn btn-ghost" onclick="closeModal('modalPac')">Cerrar</button></div>`;
+  document.getElementById('modalPac').classList.add('open');
+}
+
+// Detalle de pacientes al hacer clic en las tarjetas de Tasa de Caídas,
+// Tasa de LPP o Mortalidad del Concentrado — reusa modalPac solo para
+// mostrar el listado (no es un formulario).
+const DETALLE_INDICADOR_CFG={
+  caidas:{titulo:'🟠 Caídas',colCol:'Hab./Sala',colFecha:'Fecha de la caída',nota:''},
+  lpp:{titulo:'🔴 Lesiones por Presión (LPP)',colCol:'Hab./Sala',colFecha:'Fecha',nota:'LPP no tiene una fecha propia capturada en el modelo — se muestra la fecha de ingreso como aproximación.'},
+  mortalidad:{titulo:'⚰ Defunciones',colCol:'Servicio',colFecha:'Fecha de defunción',nota:''}
+};
+function verDetalleIndicador(tipo){
+  const cfg=DETALLE_INDICADOR_CFG[tipo];
+  if(!cfg) return;
+  const lista=concentradoDetalleData[tipo]||[];
+  const filasHTML=lista.length
+    ? lista.map(function(p){
+        const colVal=tipo==='mortalidad'?(p.servicio||'—'):`${p.seccion==='uci'?'Sala':'Hab.'} ${p.habitacion||'—'}`;
+        return `<tr><td style="font-weight:600">${colVal}</td><td>${p.nombre||'—'}</td><td>${p.fecha||'—'}</td></tr>`;
+      }).join('')
+    : '<tr><td colspan="3" style="text-align:center;color:var(--gris4);padding:16px">Sin registros este mes</td></tr>';
+  document.getElementById('modalPacContent').innerHTML=`<div class="modal-title">${cfg.titulo} — pacientes del mes<button class="modal-close" onclick="closeModal('modalPac')">×</button></div>
+<div style="font-size:12px;color:var(--gris5);margin-bottom:10px">${lista.length} registro${lista.length!==1?'s':''} en el mes consultado en el Concentrado.${cfg.nota?' '+cfg.nota:''}</div>
+<div class="card" style="margin-bottom:0"><div class="pac-table-wrap"><table>
+  <thead><tr><th>${cfg.colCol}</th><th>Nombre</th><th>${cfg.colFecha}</th></tr></thead>
   <tbody>${filasHTML}</tbody>
 </table></div></div>
 <div class="form-actions"><button class="btn btn-ghost" onclick="closeModal('modalPac')">Cerrar</button></div>`;
