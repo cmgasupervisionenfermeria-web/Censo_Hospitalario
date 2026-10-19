@@ -475,7 +475,7 @@ let concentradoEspData={};
 // Detalle de pacientes detrás de las tarjetas de Caídas/LPP/Mortalidad del
 // Concentrado — se recalcula en cada renderConcentrado() y lo usa
 // verDetalleIndicador() al hacer clic en una de esas tres tarjetas.
-let concentradoDetalleData={caidas:[],lpp:[],mortalidad:[]};
+let concentradoDetalleData={caidas:[],lpp:[],mortalidad:[],foley:[],cvp:[],cvc:[]};
 function escAttr(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
 let concentradoEsperandoHistorial=false;
 let buscarEsperandoHistorial=false;
@@ -1732,7 +1732,69 @@ function renderConcentrado(){
   const mortalidadDetalle=defMes.map(r=>({servicio:r.servicio||'—',nombre:r.nombre,fecha:esFecha(r.fechaDefuncion)?r.fechaDefuncion:r.fecha}))
                                  .sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||''));
 
-  concentradoDetalleData={caidas:caidasDetalle,lpp:lppDetalle,mortalidad:mortalidadDetalle};
+  // ══════════════════════════════════════════════════════════
+  // DÍAS-DISPOSITIVO (Sonda Foley / Catéter CVP / Catéter CVC)
+  // ══════════════════════════════════════════════════════════
+  // Mismo principio que pacDia()/pacDiaBloqueo(): cuenta cuántos días,
+  // dentro del mes consultado, el paciente tuvo el dispositivo instalado
+  // (desde su fecha de instalación hasta su fecha de retiro, o hasta fin
+  // de mes si todavía no se ha retirado — apoyado ahora en que el egreso
+  // marca retiro automático, así que "sin retiro" ya es más confiable).
+  // Un catéter se clasifica como CVP o CVC según el texto libre capturado
+  // en "Acceso IV 1/2": contiene "CVC" o "PICC" → CVC (central, PICC se
+  // inserta de forma central); contiene "CVP" o "CPC" → CVP (periférico).
+  // Si el texto no tiene ninguna de esas marcas no se clasifica en
+  // ninguno de los dos (no se inventa un tipo).
+  function diasEnRango(ini,fin){ const d=diasEntreFechas(ini,fin); return d!==null?Math.max(0,d+1):0; }
+  function tipoCateterIV(texto){
+    const t=String(texto||'').toUpperCase();
+    if(!t) return null;
+    if(t.includes('CVC')||t.includes('PICC')) return 'CVC';
+    if(t.includes('CVP')||t.includes('CPC')) return 'CVP';
+    return null;
+  }
+  function detalleDispositivo(arr,seccion,campoFecha,campoRetiro){
+    const filas=[];
+    arr.forEach(function(r){
+      const ini=r[campoFecha]||''; if(!ini||!esFecha(ini)) return;
+      const finReal=esFecha(r[campoRetiro])?r[campoRetiro]:finMes;
+      const ie=ini<inicioMes?inicioMes:ini; const fe=finReal>finMes?finMes:finReal;
+      const dias=diasEnRango(ie,fe);
+      if(dias<=0) return;
+      filas.push({seccion:seccion,habitacion:r.habitacion,nombre:r.nombre,fechaInstalacion:ini,fechaRetiro:esFecha(r[campoRetiro])?r[campoRetiro]:'',dias:dias});
+    });
+    return filas;
+  }
+  function detalleCateterPorTipo(arr,seccion,tipoObjetivo){
+    const filas=[];
+    arr.forEach(function(r){
+      [['accesoIV','accesoIV1Fecha','accesoIV1Retiro'],['accesoIV2','accesoIV2Fecha','accesoIV2Retiro']].forEach(function(slot){
+        const campoTexto=slot[0],campoFecha=slot[1],campoRetiro=slot[2];
+        if(tipoCateterIV(r[campoTexto])!==tipoObjetivo) return;
+        const ini=r[campoFecha]||''; if(!ini||!esFecha(ini)) return;
+        const finReal=esFecha(r[campoRetiro])?r[campoRetiro]:finMes;
+        const ie=ini<inicioMes?inicioMes:ini; const fe=finReal>finMes?finMes:finReal;
+        const dias=diasEnRango(ie,fe);
+        if(dias<=0) return;
+        filas.push({seccion:seccion,habitacion:r.habitacion,nombre:r.nombre,fechaInstalacion:ini,fechaRetiro:esFecha(r[campoRetiro])?r[campoRetiro]:'',dias:dias,tipoTexto:r[campoTexto]||''});
+      });
+    });
+    return filas;
+  }
+  const foleyDetalleH=detalleDispositivo(hosp,'hosp','sondaFoleyFecha','sondaFoleyRetiro');
+  const foleyDetalleU=detalleDispositivo(uci,'uci','sondaFoleyFecha','sondaFoleyRetiro');
+  const diasFoleyH=foleyDetalleH.reduce((s,r)=>s+r.dias,0), diasFoleyU=foleyDetalleU.reduce((s,r)=>s+r.dias,0), diasFoleyTotal=diasFoleyH+diasFoleyU;
+  const foleyDetalle=[...foleyDetalleH,...foleyDetalleU].sort((a,b)=>(a.fechaInstalacion||'').localeCompare(b.fechaInstalacion||''));
+
+  const cvpDetalleH=detalleCateterPorTipo(hosp,'hosp','CVP'), cvpDetalleU=detalleCateterPorTipo(uci,'uci','CVP');
+  const diasCVPH=cvpDetalleH.reduce((s,r)=>s+r.dias,0), diasCVPU=cvpDetalleU.reduce((s,r)=>s+r.dias,0), diasCVPTotal=diasCVPH+diasCVPU;
+  const cvpDetalle=[...cvpDetalleH,...cvpDetalleU].sort((a,b)=>(a.fechaInstalacion||'').localeCompare(b.fechaInstalacion||''));
+
+  const cvcDetalleH=detalleCateterPorTipo(hosp,'hosp','CVC'), cvcDetalleU=detalleCateterPorTipo(uci,'uci','CVC');
+  const diasCVCH=cvcDetalleH.reduce((s,r)=>s+r.dias,0), diasCVCU=cvcDetalleU.reduce((s,r)=>s+r.dias,0), diasCVCTotal=diasCVCH+diasCVCU;
+  const cvcDetalle=[...cvcDetalleH,...cvcDetalleU].sort((a,b)=>(a.fechaInstalacion||'').localeCompare(b.fechaInstalacion||''));
+
+  concentradoDetalleData={caidas:caidasDetalle,lpp:lppDetalle,mortalidad:mortalidadDetalle,foley:foleyDetalle,cvp:cvpDetalle,cvc:cvcDetalle};
 
   const hoyStr=dk(new Date());
   const fechaRefH=finMes<=hoyStr?finMes:hoyStr;
@@ -1835,6 +1897,36 @@ function renderConcentrado(){
           <div style="flex:1;text-align:center;background:var(--verde3);border-radius:8px;padding:10px"><div style="font-size:10px;font-weight:700;color:var(--verde)">TOTAL</div><div style="font-size:28px;font-weight:700;color:var(--verde)">${pdTodos}</div></div>
         </div>
         <div style="font-size:10px;color:var(--gris4)">Suma de días que cada paciente activo estuvo presente en el mes (1 paciente en 1 cama, 1 día = 1 día-cama). Equivale al ${dcDisponiblesTotal>0?Math.round(dcOcupadosTotal/dcDisponiblesTotal*1000)/10:0}% de los días-cama disponibles.</div>
+      </div>
+    </div>
+    <div class="ind-grid-3" style="margin-bottom:12px">
+      <div class="group-title">💧 Días-Dispositivo — ${MESES_NOM[mes]} ${anio}</div>
+      <div class="ind-card" style="cursor:pointer" onclick="verDetalleIndicador('foley')" title="Ver detalle de pacientes">
+        <div class="ind-hdr"><div class="ind-dot" style="background:var(--az)"></div><span class="ind-ttl">Días-Sonda Foley 🔍</span></div>
+        <div style="display:flex;gap:16px;margin:8px 0 12px">
+          <div style="flex:1;text-align:center;background:var(--az3);border-radius:8px;padding:10px"><div style="font-size:10px;font-weight:700;color:var(--az2)">HOSPITALIZACIÓN</div><div style="font-size:28px;font-weight:700;color:var(--az2)">${diasFoleyH}</div></div>
+          <div style="flex:1;text-align:center;background:var(--rojo3);border-radius:8px;padding:10px"><div style="font-size:10px;font-weight:700;color:var(--rojo)">UCI / UCIM</div><div style="font-size:28px;font-weight:700;color:var(--rojo)">${diasFoleyU}</div></div>
+          <div style="flex:1;text-align:center;background:var(--gris1);border-radius:8px;padding:10px"><div style="font-size:10px;font-weight:700;color:var(--gris6)">TOTAL</div><div style="font-size:28px;font-weight:700;color:var(--gris6)">${diasFoleyTotal}</div></div>
+        </div>
+        <div style="font-size:10px;color:var(--gris4)">Suma de días con sonda Foley instalada dentro del mes (1 paciente con sonda, 1 día = 1 día-sonda).</div>
+      </div>
+      <div class="ind-card" style="cursor:pointer" onclick="verDetalleIndicador('cvp')" title="Ver detalle de pacientes">
+        <div class="ind-hdr"><div class="ind-dot" style="background:var(--verde)"></div><span class="ind-ttl">Días-Catéter CVP 🔍</span></div>
+        <div style="display:flex;gap:16px;margin:8px 0 12px">
+          <div style="flex:1;text-align:center;background:var(--az3);border-radius:8px;padding:10px"><div style="font-size:10px;font-weight:700;color:var(--az2)">HOSPITALIZACIÓN</div><div style="font-size:28px;font-weight:700;color:var(--az2)">${diasCVPH}</div></div>
+          <div style="flex:1;text-align:center;background:var(--rojo3);border-radius:8px;padding:10px"><div style="font-size:10px;font-weight:700;color:var(--rojo)">UCI / UCIM</div><div style="font-size:28px;font-weight:700;color:var(--rojo)">${diasCVPU}</div></div>
+          <div style="flex:1;text-align:center;background:var(--verde3);border-radius:8px;padding:10px"><div style="font-size:10px;font-weight:700;color:var(--verde)">TOTAL</div><div style="font-size:28px;font-weight:700;color:var(--verde)">${diasCVPTotal}</div></div>
+        </div>
+        <div style="font-size:10px;color:var(--gris4)">Catéter venoso periférico — días con acceso IV cuyo texto capturado contiene "CVP" o "CPC".</div>
+      </div>
+      <div class="ind-card" style="cursor:pointer" onclick="verDetalleIndicador('cvc')" title="Ver detalle de pacientes">
+        <div class="ind-hdr"><div class="ind-dot" style="background:var(--morado)"></div><span class="ind-ttl">Días-Catéter CVC 🔍</span></div>
+        <div style="display:flex;gap:16px;margin:8px 0 12px">
+          <div style="flex:1;text-align:center;background:var(--az3);border-radius:8px;padding:10px"><div style="font-size:10px;font-weight:700;color:var(--az2)">HOSPITALIZACIÓN</div><div style="font-size:28px;font-weight:700;color:var(--az2)">${diasCVCH}</div></div>
+          <div style="flex:1;text-align:center;background:var(--rojo3);border-radius:8px;padding:10px"><div style="font-size:10px;font-weight:700;color:var(--rojo)">UCI / UCIM</div><div style="font-size:28px;font-weight:700;color:var(--rojo)">${diasCVCU}</div></div>
+          <div style="flex:1;text-align:center;background:var(--morado3);border-radius:8px;padding:10px"><div style="font-size:10px;font-weight:700;color:var(--morado)">TOTAL</div><div style="font-size:28px;font-weight:700;color:var(--morado)">${diasCVCTotal}</div></div>
+        </div>
+        <div style="font-size:10px;color:var(--gris4)">Catéter venoso central (incluye PICC) — días con acceso IV cuyo texto capturado contiene "CVC" o "PICC".</div>
       </div>
     </div>
     <div class="ind-grid-3" style="margin-bottom:12px">
@@ -2016,12 +2108,32 @@ function verPacientesEspecialidad(esp){
 }
 
 // Detalle de pacientes al hacer clic en las tarjetas de Tasa de Caídas,
-// Tasa de LPP o Mortalidad del Concentrado — reusa modalPac solo para
-// mostrar el listado (no es un formulario).
+// Tasa de LPP, Mortalidad, o las de Días-Dispositivo (Foley/CVP/CVC) del
+// Concentrado — reusa modalPac solo para mostrar el listado (no es un
+// formulario). Cada tipo define sus propias columnas (col.header +
+// col.render), para poder mostrar fecha única (caídas/LPP/mortalidad) o
+// instalación+retiro+días (dispositivos) con el mismo código.
+const HAB_O_SALA=p=>`${p.seccion==='uci'?'Sala':'Hab.'} ${p.habitacion||'—'}`;
+const RETIRO_O_ACTIVO=p=>p.fechaRetiro?p.fechaRetiro:'<span style="color:var(--verde);font-weight:600">Activo</span>';
 const DETALLE_INDICADOR_CFG={
-  caidas:{titulo:'🟠 Caídas',colCol:'Hab./Sala',colFecha:'Fecha de la caída',nota:''},
-  lpp:{titulo:'🔴 Lesiones por Presión (LPP)',colCol:'Hab./Sala',colFecha:'Fecha',nota:'LPP no tiene una fecha propia capturada en el modelo — se muestra la fecha de ingreso como aproximación.'},
-  mortalidad:{titulo:'⚰ Defunciones',colCol:'Servicio',colFecha:'Fecha de defunción',nota:''}
+  caidas:{titulo:'🟠 Caídas',nota:'',cols:[
+    {header:'Hab./Sala',render:HAB_O_SALA},{header:'Nombre',render:p=>p.nombre||'—'},{header:'Fecha de la caída',render:p=>p.fecha||'—'}
+  ]},
+  lpp:{titulo:'🔴 Lesiones por Presión (LPP)',nota:'LPP no tiene una fecha propia capturada en el modelo — se muestra la fecha de ingreso como aproximación.',cols:[
+    {header:'Hab./Sala',render:HAB_O_SALA},{header:'Nombre',render:p=>p.nombre||'—'},{header:'Fecha',render:p=>p.fecha||'—'}
+  ]},
+  mortalidad:{titulo:'⚰ Defunciones',nota:'',cols:[
+    {header:'Servicio',render:p=>p.servicio||'—'},{header:'Nombre',render:p=>p.nombre||'—'},{header:'Fecha de defunción',render:p=>p.fecha||'—'}
+  ]},
+  foley:{titulo:'💧 Días-Sonda Foley',nota:'',cols:[
+    {header:'Hab./Sala',render:HAB_O_SALA},{header:'Nombre',render:p=>p.nombre||'—'},{header:'Instalación',render:p=>p.fechaInstalacion||'—'},{header:'Retiro',render:RETIRO_O_ACTIVO},{header:'Días en el mes',render:p=>p.dias}
+  ]},
+  cvp:{titulo:'💧 Días-Catéter CVP (periférico)',nota:'Se clasifica como CVP un acceso IV cuyo texto capturado contiene "CVP" o "CPC".',cols:[
+    {header:'Hab./Sala',render:HAB_O_SALA},{header:'Nombre',render:p=>p.nombre||'—'},{header:'Instalación',render:p=>p.fechaInstalacion||'—'},{header:'Retiro',render:RETIRO_O_ACTIVO},{header:'Días en el mes',render:p=>p.dias}
+  ]},
+  cvc:{titulo:'💧 Días-Catéter CVC (central)',nota:'Se clasifica como CVC un acceso IV cuyo texto capturado contiene "CVC" o "PICC".',cols:[
+    {header:'Hab./Sala',render:HAB_O_SALA},{header:'Nombre',render:p=>p.nombre||'—'},{header:'Instalación',render:p=>p.fechaInstalacion||'—'},{header:'Retiro',render:RETIRO_O_ACTIVO},{header:'Días en el mes',render:p=>p.dias}
+  ]}
 };
 function verDetalleIndicador(tipo){
   const cfg=DETALLE_INDICADOR_CFG[tipo];
@@ -2029,14 +2141,13 @@ function verDetalleIndicador(tipo){
   const lista=concentradoDetalleData[tipo]||[];
   const filasHTML=lista.length
     ? lista.map(function(p){
-        const colVal=tipo==='mortalidad'?(p.servicio||'—'):`${p.seccion==='uci'?'Sala':'Hab.'} ${p.habitacion||'—'}`;
-        return `<tr><td style="font-weight:600">${colVal}</td><td>${p.nombre||'—'}</td><td>${p.fecha||'—'}</td></tr>`;
+        return '<tr>'+cfg.cols.map(function(c,i){ return `<td${i===0?' style="font-weight:600"':''}>${c.render(p)}</td>`; }).join('')+'</tr>';
       }).join('')
-    : '<tr><td colspan="3" style="text-align:center;color:var(--gris4);padding:16px">Sin registros este mes</td></tr>';
+    : `<tr><td colspan="${cfg.cols.length}" style="text-align:center;color:var(--gris4);padding:16px">Sin registros este mes</td></tr>`;
   document.getElementById('modalPacContent').innerHTML=`<div class="modal-title">${cfg.titulo} — pacientes del mes<button class="modal-close" onclick="closeModal('modalPac')">×</button></div>
 <div style="font-size:12px;color:var(--gris5);margin-bottom:10px">${lista.length} registro${lista.length!==1?'s':''} en el mes consultado en el Concentrado.${cfg.nota?' '+cfg.nota:''}</div>
 <div class="card" style="margin-bottom:0"><div class="pac-table-wrap"><table>
-  <thead><tr><th>${cfg.colCol}</th><th>Nombre</th><th>${cfg.colFecha}</th></tr></thead>
+  <thead><tr>${cfg.cols.map(function(c){ return `<th>${c.header}</th>`; }).join('')}</tr></thead>
   <tbody>${filasHTML}</tbody>
 </table></div></div>
 <div class="form-actions"><button class="btn btn-ghost" onclick="closeModal('modalPac')">Cerrar</button></div>`;
