@@ -536,6 +536,45 @@ async function cargarDatos(){
 
 function esFecha(v){ return typeof v==='string' && /^\d{4}-\d{2}-\d{2}$/.test(v); }
 
+// ══════════════════════════════════════════════════════════
+// RETIRO AUTOMÁTICO DE DISPOSITIVOS INVASIVOS AL DAR EGRESO
+// ══════════════════════════════════════════════════════════
+// Al dar egreso (por cualquiera de las vías: botón 🚪 Egreso, el formulario
+// de editar paciente, ⚰ Defunción desde el paciente, o una defunción
+// registrada directo en la pestaña Defunciones que le da egreso automático
+// al paciente), cualquier dispositivo invasivo que esté instalado (tiene
+// fecha de instalación) pero sin fecha de retiro capturada se marca
+// retirado ese mismo día del egreso — ya no tiene sentido que un
+// dispositivo siga "puesto" en un paciente que ya no está internado.
+// Nunca pisa una fecha de retiro que ya esté capturada a mano.
+const DISPOSITIVOS_FECHA_RETIRO=[
+  ['accesoIV1Fecha','accesoIV1Retiro'],
+  ['accesoIV2Fecha','accesoIV2Retiro'],
+  ['sondaFoleyFecha','sondaFoleyRetiro'],
+  ['sngFecha','sngRetiro'],
+  ['drenaje1Fecha','drenaje1Retiro'],
+  ['drenaje2Fecha','drenaje2Retiro'],
+  ['soporteRespFecha','soporteRespRetiro'],
+  ['ventMecFecha','ventMecRetiro']
+];
+function marcarRetiroDispositivos(rec,fechaEgreso){
+  if(!fechaEgreso||!esFecha(fechaEgreso)) return rec;
+  DISPOSITIVOS_FECHA_RETIRO.forEach(function(par){
+    const fCampo=par[0], rCampo=par[1];
+    if(rec[fCampo]&&esFecha(rec[fCampo])&&!rec[rCampo]){ rec[rCampo]=fechaEgreso; }
+  });
+  return rec;
+}
+// Cuenta cuántos dispositivos quedarían marcados como retirados — se usa
+// ANTES de llamar marcarRetiroDispositivos() (que ya modifica el registro)
+// para poder avisar en el toast cuántos se retiraron automáticamente.
+function contarDispositivosPendientesRetiro(rec){
+  return DISPOSITIVOS_FECHA_RETIRO.filter(function(par){
+    const fCampo=par[0], rCampo=par[1];
+    return rec[fCampo]&&esFecha(rec[fCampo])&&!rec[rCampo];
+  }).length;
+}
+
 function filtrarActivos(arr){
   const hoy=dk(cur);
   return arr.filter(r=>{
@@ -1178,7 +1217,8 @@ async function confirmarEgreso(id,seccion){
   const fecha=document.getElementById('eg-fecha').value;
   const hora=document.getElementById('eg-hora').value;
   if(!fecha||!esFecha(fecha)){ toast('Ingresa una fecha de egreso válida','error'); return; }
-  const actualizado=Object.assign({},rec,{ fechaEgreso:fecha, horaEgreso:hora, destinoEgreso:destino });
+  const nDisp=contarDispositivosPendientesRetiro(rec);
+  const actualizado=marcarRetiroDispositivos(Object.assign({},rec,{ fechaEgreso:fecha, horaEgreso:hora, destinoEgreso:destino }),fecha);
   const i=DB[seccion].findIndex(r=>r.id===id);
   if(i>-1) DB[seccion][i]=actualizado;
   showLoader('💾 Guardando egreso…');
@@ -1186,7 +1226,7 @@ async function confirmarEgreso(id,seccion){
   hideLoader();
   closeModal('modalPac');
   if(seccion==='hosp') renderHosp(); else renderUCI();
-  toast('✓ Egreso registrado');
+  toast(nDisp>0?`✓ Egreso registrado — retiro automático de ${nDisp} dispositivo${nDisp!==1?'s':''}`:'✓ Egreso registrado');
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1227,7 +1267,8 @@ async function registrarDefuncion(id,seccion){
   };
   DB.def.push(d);
 
-  const egresado=Object.assign({},rec,{ fechaEgreso:hoy, horaEgreso:horaNow, destinoEgreso:'Defunción' });
+  const nDisp=contarDispositivosPendientesRetiro(rec);
+  const egresado=marcarRetiroDispositivos(Object.assign({},rec,{ fechaEgreso:hoy, horaEgreso:horaNow, destinoEgreso:'Defunción' }),hoy);
   const i=DB[seccion].findIndex(r=>r.id===id);
   if(i>-1) DB[seccion][i]=egresado;
 
@@ -1239,7 +1280,7 @@ async function registrarDefuncion(id,seccion){
   closeModal('modalPac');
   if(seccion==='hosp') renderHosp(); else renderUCI();
   renderDef();
-  toast('⚰ Defunción registrada — completa los datos que faltan');
+  toast(`⚰ Defunción registrada${nDisp>0?` — retiro automático de ${nDisp} dispositivo${nDisp!==1?'s':''}`:''} — completa los datos que faltan`);
   abrirModalDefuncion(d.id);
 }
 
@@ -1316,6 +1357,12 @@ async function guardarPaciente(id,seccion){
     horaEgreso:document.getElementById('p-heg').value
   };
 
+  let nDispGuardarPaciente=0;
+  if(d.fechaEgreso&&esFecha(d.fechaEgreso)){
+    nDispGuardarPaciente=contarDispositivosPendientesRetiro(d);
+    marcarRetiroDispositivos(d,d.fechaEgreso);
+  }
+
   if(!(d.fechaEgreso&&esFecha(d.fechaEgreso))){
     const ocupante=habitacionOcupadaPor(seccion,d.habitacion,id||null);
     if(ocupante){
@@ -1334,7 +1381,7 @@ async function guardarPaciente(id,seccion){
   await apiCall({action:id?'update':'save',section:seccion,record:d});
   hideLoader(); closeModal('modalPac');
   if(seccion==='hosp') renderHosp(); else renderUCI();
-  toast('✓ Paciente guardado');
+  toast(nDispGuardarPaciente>0?`✓ Paciente guardado — retiro automático de ${nDispGuardarPaciente} dispositivo${nDispGuardarPaciente!==1?'s':''}`:'✓ Paciente guardado');
 }
 function isUCISeccion(s){ return s==='uci'; }
 
@@ -1351,11 +1398,14 @@ async function guardarDefuncion(id){
   // egreso del paciente en Hospitalización/UCI-UCIM — se busca por expediente
   // entre los pacientes que todavía NO tengan egreso (para no tocar un
   // ingreso anterior ya cerrado del mismo expediente).
+  let nDispGuardarDefuncion=0;
   if(d.expediente){
     for(const seccion of ['hosp','uci']){
       const i2=DB[seccion].findIndex(r=>r.expediente===d.expediente && !(r.fechaEgreso&&esFecha(r.fechaEgreso)));
       if(i2>-1){
-        const egresado=Object.assign({},DB[seccion][i2],{ fechaEgreso:(d.fechaDefuncion&&esFecha(d.fechaDefuncion))?d.fechaDefuncion:dk(cur), horaEgreso:d.horaDefuncion||'', destinoEgreso:'Defunción' });
+        const fechaEgresoDef=(d.fechaDefuncion&&esFecha(d.fechaDefuncion))?d.fechaDefuncion:dk(cur);
+        nDispGuardarDefuncion=contarDispositivosPendientesRetiro(DB[seccion][i2]);
+        const egresado=marcarRetiroDispositivos(Object.assign({},DB[seccion][i2],{ fechaEgreso:fechaEgresoDef, horaEgreso:d.horaDefuncion||'', destinoEgreso:'Defunción' }),fechaEgresoDef);
         DB[seccion][i2]=egresado;
         await apiCall({action:'update',section:seccion,record:egresado});
         if(seccion==='hosp') renderHosp(); else renderUCI();
@@ -1363,7 +1413,8 @@ async function guardarDefuncion(id){
     }
   }
 
-  hideLoader(); closeModal('modalDef'); renderDef(); toast('✓ Defunción registrada');
+  hideLoader(); closeModal('modalDef'); renderDef();
+  toast(nDispGuardarDefuncion>0?`✓ Defunción registrada — retiro automático de ${nDispGuardarDefuncion} dispositivo${nDispGuardarDefuncion!==1?'s':''}`:'✓ Defunción registrada');
 }
 
 async function eliminar(id,seccion,modal){ if(!confirm('¿Eliminar este registro?')) return; DB[seccion]=DB[seccion].filter(r=>r.id!==id); showLoader('🗑 Eliminando…'); await apiCall({action:'delete',section:seccion,id}); hideLoader(); closeModal(modal); renderAll(); toast('Registro eliminado','error'); }
