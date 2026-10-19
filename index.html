@@ -1469,15 +1469,34 @@ function renderConcentrado(){
   });
   const pctReingresos=totalEgresos>0?Math.round(nReingresos/totalEgresos*1000)/10:null;
 
-  const nCaidasH=hosp.filter(r=>r['caídaEvento']==='Sí').length;
-  const nCaidasU=uci.filter(r=>r['caídaEvento']==='Sí').length;
+  // Un paciente cuya estancia abarca más de un mes aparece en "hosp"/"uci"/
+  // "todos" de CADA mes que toca (correcto para ocupación/días-paciente),
+  // pero un evento puntual (caída, infección, LPP) solo pasó UNA vez — hay
+  // que contarlo solo en el mes en que ocurrió/se detectó, usando su propia
+  // fecha, y no en todos los meses en que el paciente estuvo presente.
+  // Si el evento no tiene fecha propia capturada (o es inválida), se usa
+  // la fecha de ingreso como mejor aproximación disponible, en vez de
+  // perder el evento o contarlo de más.
+  function fechaEvento(fechaPropia,r){
+    if(fechaPropia&&esFecha(fechaPropia)) return fechaPropia;
+    return r.fechaIngreso||r.fecha||'';
+  }
+  function ocurrioEnMes(fechaPropia,r){
+    const f=fechaEvento(fechaPropia,r);
+    return esFecha(f)&&f>=inicioMes&&f<=finMes;
+  }
+
+  const nCaidasH=hosp.filter(r=>r['caídaEvento']==='Sí'&&ocurrioEnMes(r['caídaFecha'],r)).length;
+  const nCaidasU=uci.filter(r=>r['caídaEvento']==='Sí'&&ocurrioEnMes(r['caídaFecha'],r)).length;
   const nCaidas=nCaidasH+nCaidasU;
   const tasaCaidas=pdTodos>0?Math.round(nCaidas/pdTodos*1000*100)/100:null;
-  const nLPP=todos.filter(r=>r.lppEvento==='Sí').length;
+  // LPP no tiene campo de fecha propia (no existe "lppFecha" en el modelo),
+  // así que se atribuye al mes de ingreso del paciente.
+  const nLPP=todos.filter(r=>r.lppEvento==='Sí'&&ocurrioEnMes('',r)).length;
   const tasaLPP=todos.length>0?Math.round(nLPP/todos.length*1000)/10:null;
 
-  const infHosp=hosp.filter(r=>r.infeccionEvento==='Sí');
-  const infUCI=uci.filter(r=>r.infeccionEvento==='Sí');
+  const infHosp=hosp.filter(r=>r.infeccionEvento==='Sí'&&ocurrioEnMes(r.infeccionFecha,r));
+  const infUCI=uci.filter(r=>r.infeccionEvento==='Sí'&&ocurrioEnMes(r.infeccionFecha,r));
   const infTodos=[...infHosp,...infUCI];
   const infCount={};
   infTodos.forEach(r=>{ if(r.infeccionTipo){ infCount[r.infeccionTipo]=(infCount[r.infeccionTipo]||0)+1; } });
