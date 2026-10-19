@@ -188,6 +188,7 @@ style="width:100%;padding:12px;font-size:20px;text-align:center;border:2px solid
 </select>
 <select id="csv-anio-hosp" style="padding:7px 10px;font-size:12px;border-radius:7px;border:1px solid var(--gris3)"><option>2026</option><option>2027</option></select>
 <button class="btn btn-ghost btn-sm" onclick="exportarCSV('hosp')">↓ CSV mensual</button>
+<button class="btn btn-ghost btn-sm" onclick="requirePin(()=>abrirModalBloqueos('hosp'))">🔒 Bloquear habitación</button>
 <span id="hosp-camas" style="background:var(--gris1);padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;color:var(--gris6);margin-left:auto"></span>
 </div>
 <div class="card">
@@ -225,6 +226,7 @@ style="width:100%;padding:12px;font-size:20px;text-align:center;border:2px solid
 </select>
 <select id="csv-anio-uci" style="padding:7px 10px;font-size:12px;border-radius:7px;border:1px solid var(--gris3)"><option>2026</option><option>2027</option></select>
 <button class="btn btn-ghost btn-sm" onclick="exportarCSV('uci')">↓ CSV mensual</button>
+<button class="btn btn-ghost btn-sm" onclick="requirePin(()=>abrirModalBloqueos('uci'))">🔒 Bloquear habitación</button>
 <span id="uci-camas" style="background:var(--gris1);padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;color:var(--gris6);margin-left:auto"></span>
 </div>
 <div class="card">
@@ -370,7 +372,7 @@ let cur = new Date(); cur.setHours(0,0,0,0);
 let turno = 'M';
 let pinOK = false, pinCB = null;
 let nid = 1;
-let DB = { hosp:[], uci:[], def:[] };
+let DB = { hosp:[], uci:[], def:[], bloqueos:[] };
 
 function dk(d){ if(typeof d==='string') d=new Date(d+'T12:00:00'); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function fmt(d){ const days=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado']; const months=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']; return days[d.getDay()]+', '+d.getDate()+' de '+months[d.getMonth()]+' de '+d.getFullYear(); }
@@ -438,16 +440,16 @@ function renderAll(){ renderHosp(); renderUCI(); renderDef(); }
 
 const GAS_CONFIGURADO = GAS_URL !== 'TU_URL_GAS_AQUI';
 function guardarLocal(){ try{ localStorage.setItem('censo_db_v3',JSON.stringify({db:DB,nid,ts:Date.now()})); }catch(e){} }
-function cargarLocal(){ try{ const raw=localStorage.getItem('censo_db_v3'); if(!raw) return false; const p=JSON.parse(raw); if(p.db) ['hosp','uci','def'].forEach(s=>{ if(Array.isArray(p.db[s])) DB[s]=p.db[s]; }); if(p.nid) nid=p.nid; return true; }catch(e){ return false; } }
-function recalcNid(){ const allIds=[...DB.hosp,...DB.uci,...DB.def].map(x=>Number(x.id)||0); nid=allIds.length?Math.max(...allIds)+1:1; }
+function cargarLocal(){ try{ const raw=localStorage.getItem('censo_db_v3'); if(!raw) return false; const p=JSON.parse(raw); if(p.db) ['hosp','uci','def','bloqueos'].forEach(s=>{ if(Array.isArray(p.db[s])) DB[s]=p.db[s]; }); if(p.nid) nid=p.nid; return true; }catch(e){ return false; } }
+function recalcNid(){ const allIds=[...DB.hosp,...DB.uci,...DB.def,...(DB.bloqueos||[])].map(x=>Number(x.id)||0); nid=allIds.length?Math.max(...allIds)+1:1; }
 
 async function apiCall(payload){ guardarLocal(); if(!GAS_CONFIGURADO) return{ok:true}; try{ const params=new URLSearchParams(); params.append('token',API_TOKEN); params.append('action',payload.action); params.append('section',payload.section||''); if(payload.record) params.append('record',JSON.stringify(payload.record)); if(payload.id!==undefined) params.append('id',payload.id); const r=await fetch(GAS_URL+'?'+params.toString()); const data=await r.json(); if(data.ok) guardarLocal(); else if(data.error) toast('⚠ '+data.error,'error'); return data; }catch(e){ console.error('Error GAS:',e); toast('⚠ Sin conexión — guardado localmente','error'); return{ok:false}; } }
 
 // Normaliza fechas/horas que Google Sheets pudo mandar en formato ISO
 // completo (con 'T') en vez del formato simple que usa el front-end.
 function normalizarRegistro(rec){
-  const camposFecha=['fecha','fechaIngreso','fechaNac','fechaProcedimiento','fechaEgreso','accesoIV1Fecha','accesoIV1Retiro','accesoIV2Fecha','accesoIV2Retiro','sondaFoleyFecha','sondaFoleyRetiro','sngFecha','sngRetiro','drenaje1Fecha','drenaje1Retiro','drenaje2Fecha','drenaje2Retiro','soporteRespFecha','soporteRespRetiro','ventMecFecha','ventMecRetiro','caídaFecha','infeccionFecha','fechaDefuncion','fechaIngresoTanatorio'];
-  const camposHora=['horaIngreso','horaEgreso','horaDefuncion','horaIngresoTanatorio','horaEgresoTanatorio'];
+  const camposFecha=['fecha','fechaIngreso','fechaNac','fechaProcedimiento','fechaEgreso','accesoIV1Fecha','accesoIV1Retiro','accesoIV2Fecha','accesoIV2Retiro','sondaFoleyFecha','sondaFoleyRetiro','sngFecha','sngRetiro','drenaje1Fecha','drenaje1Retiro','drenaje2Fecha','drenaje2Retiro','soporteRespFecha','soporteRespRetiro','ventMecFecha','ventMecRetiro','caídaFecha','infeccionFecha','fechaDefuncion','fechaIngresoTanatorio','fechaBloqueo','fechaDesbloqueo'];
+  const camposHora=['horaIngreso','horaEgreso','horaDefuncion','horaIngresoTanatorio','horaEgresoTanatorio','horaBloqueo','horaDesbloqueo'];
   camposFecha.forEach(c=>{ if(rec[c]&&typeof rec[c]==='string'&&rec[c].includes('T')){ rec[c]=rec[c].split('T')[0]; } });
   camposHora.forEach(c=>{ if(rec[c]&&typeof rec[c]==='string'&&rec[c].includes('T')){ const d=new Date(rec[c]); rec[c]=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); } });
   return rec;
@@ -502,7 +504,7 @@ async function cargarDatos(){
     const data=await r.json();
     if(data&&data.ok===false){ toast('⚠ '+(data.error||'No autorizado'),'error'); }
     if(data&&typeof data==='object'){
-      ['hosp','uci','def'].forEach(s=>{ if(Array.isArray(data[s])){ DB[s]=data[s].map(normalizarRegistro); } });
+      ['hosp','uci','def','bloqueos'].forEach(s=>{ if(Array.isArray(data[s])){ DB[s]=data[s].map(normalizarRegistro); } });
       recalcNid();
       guardarLocal();
     }
@@ -692,13 +694,33 @@ function habitacionOcupadaPor(seccion, habitacion, excludeId){
   }) || null;
 }
 
+// ══════════════════════════════════════════════════════════
+// BLOQUEO DE HABITACIONES (mantenimiento / familiares de
+// pacientes de Terapia ocupando la cama) — NUNCA crea un
+// registro en DB.hosp/DB.uci, para que una habitación bloqueada
+// no se cuente jamás como paciente en ningún conteo, reporte o
+// exportación (ese era el problema con los registros falsos
+// "BLOQUEADA"/"Familiares de…" que se usaban antes).
+// ══════════════════════════════════════════════════════════
+function camasBloqueadas(seccion){
+  return (DB.bloqueos||[]).filter(function(b){ return b.seccion===seccion && !esFecha(b.fechaDesbloqueo); });
+}
+function habitacionBloqueadaPor(seccion, habitacion, excludeId){
+  if(!habitacion) return null;
+  return camasBloqueadas(seccion).find(function(b){
+    if(excludeId!==null&&excludeId!==undefined&&String(b.id)===String(excludeId)) return false;
+    return String(b.habitacion)===String(habitacion);
+  }) || null;
+}
+
 function renderCamasHosp(){
   const el=document.getElementById('hosp-camas');
   if(!el) return;
   const ocupadas=DB.hosp.filter(function(r){ return !esFecha(r.fechaEgreso); }).map(function(r){ return String(r.habitacion); });
   const ocupadasUnicas=ocupadas.filter(function(h,i){ return ocupadas.indexOf(h)===i; });
+  const bloqueadasHab=camasBloqueadas('hosp').map(function(b){ return String(b.habitacion); });
   const todasHab=Array.from({length:CAMAS_HOSP},function(_,i){ return String(i+1); });
-  const libresHab=todasHab.filter(function(h){ return ocupadasUnicas.indexOf(h)===-1; });
+  const libresHab=todasHab.filter(function(h){ return ocupadasUnicas.indexOf(h)===-1 && bloqueadasHab.indexOf(h)===-1; });
   const libres=libresHab.length;
   const color=libres<=0?'var(--rojo)':libres<=3?'var(--naranja)':'var(--verde)';
   el.style.display='inline-block';
@@ -706,16 +728,22 @@ function renderCamasHosp(){
   const chipsHTML=libres
     ? `<div style="display:flex;flex-wrap:wrap;gap:3px;justify-content:flex-end;margin-top:4px;max-width:260px">${libresHab.map(function(h){ return `<span style="background:var(--verde3);color:var(--verde);padding:1px 7px;border-radius:99px;font-size:10px;font-weight:700">${h}</span>`; }).join('')}</div>`
     : `<div style="font-size:10px;color:var(--gris4);margin-top:4px">Sin camas libres</div>`;
-  el.innerHTML=`<div>🛏 <b style="color:${color}">${libres}</b>/${CAMAS_HOSP} camas libres</div>${chipsHTML}`;
+  const bloqHTML=bloqueadasHab.length
+    ? `<div style="display:flex;flex-wrap:wrap;gap:3px;justify-content:flex-end;margin-top:4px;max-width:260px">${bloqueadasHab.map(function(h){ return `<span style="background:var(--gris2);color:var(--gris6);padding:1px 7px;border-radius:99px;font-size:10px;font-weight:700">🔒 ${h}</span>`; }).join('')}</div>`
+    : '';
+  el.innerHTML=`<div>🛏 <b style="color:${color}">${libres}</b>/${CAMAS_HOSP} camas libres${bloqueadasHab.length?` · <span style="color:var(--gris5);font-weight:600">${bloqueadasHab.length} bloqueada${bloqueadasHab.length!==1?'s':''}</span>`:''}</div>${chipsHTML}${bloqHTML}`;
 }
 
 function renderCamasUCI(){
   const el=document.getElementById('uci-camas');
   if(!el) return;
   const ocupHab=DB.uci.filter(function(r){ return !esFecha(r.fechaEgreso); }).map(function(r){ return String(r.habitacion); });
+  const bloqHab=camasBloqueadas('uci').map(function(b){ return String(b.habitacion); });
   const habUCI=['UCI 1','UCI 2'], habUCIM=['UCIM 1','UCIM 2'];
-  const libresUCIArr=habUCI.filter(function(h){ return ocupHab.indexOf(h)===-1; });
-  const libresUCIMArr=habUCIM.filter(function(h){ return ocupHab.indexOf(h)===-1; });
+  const libresUCIArr=habUCI.filter(function(h){ return ocupHab.indexOf(h)===-1 && bloqHab.indexOf(h)===-1; });
+  const libresUCIMArr=habUCIM.filter(function(h){ return ocupHab.indexOf(h)===-1 && bloqHab.indexOf(h)===-1; });
+  const bloqUCIArr=habUCI.filter(function(h){ return bloqHab.indexOf(h)!==-1; });
+  const bloqUCIMArr=habUCIM.filter(function(h){ return bloqHab.indexOf(h)!==-1; });
   const libresUCI=libresUCIArr.length, libresUCIM=libresUCIMArr.length;
   const colU=libresUCI===0?'var(--rojo)':'var(--verde)';
   const colM=libresUCIM===0?'var(--rojo)':'var(--verde)';
@@ -726,8 +754,99 @@ function renderCamasUCI(){
       ? arr.map(function(h){ return `<span style="background:var(--verde3);color:var(--verde);padding:1px 7px;border-radius:99px;font-size:10px;font-weight:700;margin-left:3px">${h}</span>`; }).join('')
       : `<span style="color:var(--gris4);font-size:10px">Ninguna</span>`;
   }
+  function chipsBloq(arr){
+    return arr.length
+      ? arr.map(function(h){ return `<span style="background:var(--gris2);color:var(--gris6);padding:1px 7px;border-radius:99px;font-size:10px;font-weight:700;margin-left:3px">🔒 ${h}</span>`; }).join('')
+      : '';
+  }
+  const bloqLine=(bloqUCIArr.length||bloqUCIMArr.length)
+    ? `<div style="margin-top:4px;font-size:10px">${bloqUCIArr.length?`UCI: ${chipsBloq(bloqUCIArr)}`:''}${bloqUCIArr.length&&bloqUCIMArr.length?' &nbsp;·&nbsp; ':''}${bloqUCIMArr.length?`UCIM: ${chipsBloq(bloqUCIMArr)}`:''}</div>`
+    : '';
   el.innerHTML=`<div>🫀 UCI: <b style="color:${colU}">${libresUCI}</b>/2 &nbsp;·&nbsp; UCIM: <b style="color:${colM}">${libresUCIM}</b>/2 libres</div>
-    <div style="margin-top:4px;font-size:10px">UCI: ${chips(libresUCIArr)} &nbsp;·&nbsp; UCIM: ${chips(libresUCIMArr)}</div>`;
+    <div style="margin-top:4px;font-size:10px">UCI: ${chips(libresUCIArr)} &nbsp;·&nbsp; UCIM: ${chips(libresUCIMArr)}</div>${bloqLine}`;
+}
+
+const MOTIVOS_BLOQUEO=['Mantenimiento','Familiares de paciente de Terapia','Otro'];
+
+// Lista de habitaciones/salas disponibles para elegir en el formulario
+// de bloqueo, según la sección (igual a las opciones que ya usa el
+// formulario de pacientes para habitación/sala).
+function habitacionesDeSeccion(seccion){
+  return seccion==='uci' ? ['UCI 1','UCI 2','UCIM 1','UCIM 2'] : Array.from({length:CAMAS_HOSP},(_,i)=>String(i+1));
+}
+
+function abrirModalBloqueos(seccion){
+  const activos=camasBloqueadas(seccion);
+  const habDisponibles=habitacionesDeSeccion(seccion).filter(h=>!activos.find(b=>String(b.habitacion)===String(h)));
+  const habOpts=habDisponibles.length
+    ? habDisponibles.map(h=>`<option value="${h}">${h}</option>`).join('')
+    : '<option value="">— No hay habitaciones disponibles para bloquear —</option>';
+  const ahora=new Date();
+  const horaActual=String(ahora.getHours()).padStart(2,'0')+':'+String(ahora.getMinutes()).padStart(2,'0');
+  const listaActivos=activos.length
+    ? activos.map(b=>`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--gris2)">
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:13px">🔒 ${seccion==='uci'?'Sala':'Hab.'} ${b.habitacion} — ${b.motivo||'—'}</div>
+          <div style="font-size:11px;color:var(--gris5);margin-top:2px">${b.notas?b.notas+' · ':''}Desde ${b.fechaBloqueo||'—'}${b.horaBloqueo?' '+b.horaBloqueo:''}</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="liberarBloqueo(${b.id},'${seccion}')">✓ Liberar</button>
+      </div>`).join('')
+    : `<div style="font-size:12px;color:var(--gris4);padding:10px 0">No hay habitaciones bloqueadas en ${seccion==='uci'?'UCI/UCIM':'Hospitalización'} en este momento.</div>`;
+  document.getElementById('modalPacContent').innerHTML=`<div class="modal-title">🔒 Bloqueo de habitaciones — ${seccion==='uci'?'UCI/UCIM':'Hospitalización'}<button class="modal-close" onclick="closeModal('modalPac')">×</button></div>
+<div style="font-size:13px;color:var(--gris6);margin-bottom:12px;line-height:1.5">
+  Usa esto para reservar una cama por mantenimiento o porque la ocupan familiares de un paciente de Terapia, sin registrarla como paciente — así no se cuenta en pacientes activos, Concentrado, Buscador ni en los CSV.
+</div>
+<div class="section-lbl">Habitaciones bloqueadas actualmente</div>
+${listaActivos}
+<div class="section-lbl" style="margin-top:16px">Bloquear una habitación</div>
+<div class="form-grid-3">
+  <div class="form-group"><label>${seccion==='uci'?'Sala':'Habitación'}</label><select id="bl-hab">${habOpts}</select></div>
+  <div class="form-group"><label>Motivo</label><select id="bl-motivo">${MOTIVOS_BLOQUEO.map(m=>`<option>${m}</option>`).join('')}</select></div>
+  <div class="form-group full"><label>Notas (opcional)</label><input id="bl-notas" placeholder="Ej. nombre del familiar, detalle del mantenimiento…"></div>
+  <div class="form-group"><label>Fecha</label><input type="date" id="bl-fecha" value="${dk(ahora)}"></div>
+  <div class="form-group"><label>Hora</label><input type="text" id="bl-hora" value="${horaActual}" placeholder="HH:MM" maxlength="5" style="font-family:'DM Mono',monospace" oninput="fmtHora(this)"></div>
+</div>
+<div class="form-actions"><button class="btn btn-ghost" onclick="closeModal('modalPac')">Cerrar</button><button class="btn btn-primary" onclick="guardarBloqueo('${seccion}')"${habDisponibles.length?'':' disabled'}>🔒 Bloquear</button></div>`;
+  document.getElementById('modalPac').classList.add('open');
+}
+
+async function guardarBloqueo(seccion){
+  const habSel=document.getElementById('bl-hab');
+  const habitacion=habSel?habSel.value:'';
+  if(!habitacion){ toast('Elige una habitación/sala','error'); return; }
+  const motivo=document.getElementById('bl-motivo').value;
+  const notas=document.getElementById('bl-notas').value.trim();
+  const fecha=document.getElementById('bl-fecha').value;
+  const hora=document.getElementById('bl-hora').value;
+  if(!fecha||!esFecha(fecha)){ toast('Ingresa una fecha válida','error'); return; }
+  const ocupante=habitacionOcupadaPor(seccion,habitacion,null);
+  if(ocupante){
+    const ok=confirm(`⚠ La ${seccion==='uci'?'sala':'habitación'} ${habitacion} tiene actualmente a ${ocupante.nombre||'un paciente'} registrado (sin egreso).\n\n¿Bloquearla de todas formas?`);
+    if(!ok) return;
+  }
+  const d={ id:nid++, seccion, habitacion, motivo, notas, fechaBloqueo:fecha, horaBloqueo:hora, fechaDesbloqueo:'', horaDesbloqueo:'' };
+  DB.bloqueos.push(d);
+  showLoader('💾 Guardando bloqueo…');
+  await apiCall({action:'save',section:'bloqueos',record:d});
+  hideLoader();
+  if(seccion==='hosp') renderHosp(); else renderUCI();
+  toast('🔒 Habitación bloqueada');
+  abrirModalBloqueos(seccion);
+}
+
+async function liberarBloqueo(id,seccion){
+  const b=DB.bloqueos.find(x=>x.id===id);
+  if(!b){ toast('Bloqueo no encontrado','error'); return; }
+  const ahora=new Date();
+  const actualizado=Object.assign({},b,{ fechaDesbloqueo:dk(ahora), horaDesbloqueo:String(ahora.getHours()).padStart(2,'0')+':'+String(ahora.getMinutes()).padStart(2,'0') });
+  const i=DB.bloqueos.findIndex(x=>x.id===id);
+  if(i>-1) DB.bloqueos[i]=actualizado;
+  showLoader('💾 Liberando habitación…');
+  await apiCall({action:'update',section:'bloqueos',record:actualizado});
+  hideLoader();
+  if(seccion==='hosp') renderHosp(); else renderUCI();
+  toast('✓ Habitación liberada');
+  abrirModalBloqueos(seccion);
 }
 
 function renderHosp(){
@@ -820,7 +939,8 @@ function renderDef(){ const data=DB.def.filter(r=>r.fecha===dk(cur)); const tbod
 function abrirModalPaciente(id,seccion){
   const rec=id?DB[seccion].find(r=>r.id===id)||{}:{};
   const isUCI=seccion==='uci';
-  const habOpts=isUCI?['UCI 1','UCI 2','UCIM 1','UCIM 2'].map(h=>`<option value="${h}"${rec.habitacion===h?' selected':''}>${h}</option>`).join(''):Array.from({length:18},(_,i)=>`<option value="${i+1}"${rec.habitacion==i+1?' selected':''}>${i+1}</option>`).join('');
+  const seccionBloq=isUCI?'uci':'hosp';
+  const habOpts=isUCI?['UCI 1','UCI 2','UCIM 1','UCIM 2'].map(h=>`<option value="${h}"${rec.habitacion===h?' selected':''}>${h}${habitacionBloqueadaPor(seccionBloq,h,null)?' 🔒 bloqueada':''}</option>`).join(''):Array.from({length:18},(_,i)=>`<option value="${i+1}"${rec.habitacion==i+1?' selected':''}>${i+1}${habitacionBloqueadaPor(seccionBloq,String(i+1),null)?' 🔒 bloqueada':''}</option>`).join('');
   const espOpts=['—'].concat(ESPECIALIDADES).map(e=>`<option${rec.especialidadMedico===e?' selected':''}>${e==='—'?'':e}</option>`).join('');
   document.getElementById('modalPacContent').innerHTML=`<div class="modal-title">${id?'Editar':'Nuevo'} paciente — ${isUCI?'UCI/UCIM':'Hospitalización'}<button class="modal-close" onclick="closeModal('modalPac')">×</button></div>
 <div class="section-lbl">Datos generales</div>
@@ -1191,6 +1311,11 @@ async function guardarPaciente(id,seccion){
     if(ocupante){
       const ok=confirm(`⚠ La ${isUCISeccion(seccion)?'sala':'habitación'} ${d.habitacion} ya está ocupada por ${ocupante.nombre||'otro paciente'} (sin egreso registrado).\n\n¿Continuar de todas formas?`);
       if(!ok) return;
+    }
+    const bloqueo=habitacionBloqueadaPor(seccion,d.habitacion,null);
+    if(bloqueo){
+      const okB=confirm(`🔒 La ${isUCISeccion(seccion)?'sala':'habitación'} ${d.habitacion} está bloqueada (${bloqueo.motivo||'sin motivo'}${bloqueo.notas?' — '+bloqueo.notas:''}).\n\n¿Dar de alta al paciente aquí de todas formas? (recuerda liberar el bloqueo si ya no aplica).`);
+      if(!okB) return;
     }
   }
 
@@ -1733,7 +1858,7 @@ function editarPaciente(btn){
 function limpiarCache(){
   if(!confirm('¿Borrar caché local y recargar datos de Google Sheets?')) return;
   localStorage.removeItem('censo_db_v3');
-  DB={hosp:[],uci:[],endo:[],def:[]};
+  DB={hosp:[],uci:[],def:[],bloqueos:[]};
   nid=1;
   historialCargado=false;
   toast('🔄 Caché borrado — recargando…');
