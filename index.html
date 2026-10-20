@@ -448,7 +448,7 @@ async function apiCall(payload){ guardarLocal(); if(!GAS_CONFIGURADO) return{ok:
 // Normaliza fechas/horas que Google Sheets pudo mandar en formato ISO
 // completo (con 'T') en vez del formato simple que usa el front-end.
 function normalizarRegistro(rec){
-  const camposFecha=['fecha','fechaIngreso','fechaNac','fechaProcedimiento','fechaEgreso','accesoIV1Fecha','accesoIV1Retiro','accesoIV2Fecha','accesoIV2Retiro','sondaFoleyFecha','sondaFoleyRetiro','sngFecha','sngRetiro','drenaje1Fecha','drenaje1Retiro','drenaje2Fecha','drenaje2Retiro','soporteRespFecha','soporteRespRetiro','ventMecFecha','ventMecRetiro','caídaFecha','infeccionFecha','fechaDefuncion','fechaIngresoTanatorio','fechaBloqueo','fechaDesbloqueo'];
+  const camposFecha=['fecha','fechaIngreso','fechaNac','fechaProcedimiento','fechaEgreso','accesoIV1Fecha','accesoIV1Retiro','accesoIV2Fecha','accesoIV2Retiro','sondaFoleyFecha','sondaFoleyRetiro','sngFecha','sngRetiro','drenaje1Fecha','drenaje1Retiro','drenaje2Fecha','drenaje2Retiro','soporteRespFecha','soporteRespRetiro','ventMecFecha','ventMecRetiro','caídaFecha','lppFecha','infeccionFecha','fechaDefuncion','fechaIngresoTanatorio','fechaBloqueo','fechaDesbloqueo'];
   const camposHora=['horaIngreso','horaEgreso','horaDefuncion','horaIngresoTanatorio','horaEgresoTanatorio','horaBloqueo','horaDesbloqueo'];
   camposFecha.forEach(c=>{ if(rec[c]&&typeof rec[c]==='string'&&rec[c].includes('T')){ rec[c]=rec[c].split('T')[0]; } });
   camposHora.forEach(c=>{ if(rec[c]&&typeof rec[c]==='string'&&rec[c].includes('T')){ const d=new Date(rec[c]); rec[c]=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); } });
@@ -650,8 +650,8 @@ function panelDetalle(r, seccion){
       </div>
       <div class="exp-section">
         <div class="exp-section-title">🔌 Dispositivos invasivos</div>
-        <div class="exp-field"><span class="exp-lbl">Acceso IV 1</span><span class="exp-val">${disp('IV 1 '+(r.accesoIV||''), r.accesoIV1Fecha, r.accesoIV1Retiro)}</span></div>
-        <div class="exp-field"><span class="exp-lbl">Acceso IV 2</span><span class="exp-val">${disp('IV 2 '+(r.accesoIV2||''), r.accesoIV2Fecha, r.accesoIV2Retiro)}</span></div>
+        <div class="exp-field"><span class="exp-lbl">Acceso IV 1</span><span class="exp-val">${disp('IV 1'+(r.accesoIV1Tipo?' ['+r.accesoIV1Tipo+']':'')+' '+(r.accesoIV||''), r.accesoIV1Fecha, r.accesoIV1Retiro)}</span></div>
+        <div class="exp-field"><span class="exp-lbl">Acceso IV 2</span><span class="exp-val">${disp('IV 2'+(r.accesoIV2Tipo?' ['+r.accesoIV2Tipo+']':'')+' '+(r.accesoIV2||''), r.accesoIV2Fecha, r.accesoIV2Retiro)}</span></div>
         <div class="exp-field"><span class="exp-lbl">Sonda Foley</span><span class="exp-val">${r.sondaFoley==='Sí'?disp('Foley', r.sondaFoleyFecha, r.sondaFoleyRetiro):'—'}</span></div>
         <div class="exp-field"><span class="exp-lbl">SNG</span><span class="exp-val">${r.sng==='Sí'?disp('SNG', r.sngFecha, r.sngRetiro):'—'}</span></div>
         <div class="exp-field"><span class="exp-lbl">Drenaje 1</span><span class="exp-val">${disp('Drenaje '+(r.drenaje1||''), r.drenaje1Fecha, r.drenaje1Retiro)}</span></div>
@@ -661,7 +661,7 @@ function panelDetalle(r, seccion){
         ${isUCI||r.ventMec==='Sí'?`<div class="exp-field"><span class="exp-lbl">Vent. mecánica</span><span class="exp-val">${r.ventMec==='Sí'?disp('VM', r.ventMecFecha, r.ventMecRetiro):'—'}</span></div>`:''}
         <div class="exp-section-title" style="margin-top:8px">⚠ Eventos adversos</div>
         <div class="exp-field"><span class="exp-lbl">Caída</span><span class="exp-val ${r.caídaEvento==='Sí'?'alert':''}">${r.caídaEvento==='Sí'?'⚠ Sí · '+fmtF(r.caídaFecha):'No'}</span></div>
-        <div class="exp-field"><span class="exp-lbl">LPP</span><span class="exp-val ${r.lppEvento==='Sí'?'alert':''}">${r.lppEvento==='Sí'?'⚠ '+(r.lppGrado||'Sí'):'No'}</span></div>
+        <div class="exp-field"><span class="exp-lbl">LPP</span><span class="exp-val ${r.lppEvento==='Sí'?'alert':''}">${r.lppEvento==='Sí'?'⚠ '+(r.lppGrado||'Sí')+(r.lppFecha?' · '+fmtF(r.lppFecha):'')+(r.lppDesdeCasa==='Sí'?' · Desde casa':''):'No'}</span></div>
         <div class="exp-field"><span class="exp-lbl">Infección</span><span class="exp-val ${r.infeccionEvento==='Sí'?'alert':''}">${r.infeccionEvento==='Sí'?'⚠ '+(r.infeccionTipo||'Sí')+(r.infeccionAgente?' · '+r.infeccionAgente:''):'No'}</span></div>
       </div>
     </div>
@@ -883,7 +883,8 @@ async function guardarBloqueo(seccion){
   abrirModalBloqueos(seccion);
 }
 
-async function liberarBloqueo(id,seccion){
+async function liberarBloqueo(id,seccion,reabrirModal){
+  if(reabrirModal===undefined) reabrirModal=true;
   const b=DB.bloqueos.find(x=>x.id===id);
   if(!b){ toast('Bloqueo no encontrado','error'); return; }
   const ahora=new Date();
@@ -895,20 +896,45 @@ async function liberarBloqueo(id,seccion){
   hideLoader();
   if(seccion==='hosp') renderHosp(); else renderUCI();
   toast('✓ Habitación liberada');
-  abrirModalBloqueos(seccion);
+  if(reabrirModal) abrirModalBloqueos(seccion);
+}
+
+// Fila gris para una habitación bloqueada, para insertarla entre las
+// filas de pacientes en el listado (ya no solo se ve en el resumen de
+// camas) — mismo criterio visual que la fila verde de un egreso del
+// día: un color de fondo que distingue el estado de la habitación de
+// un vistazo, sin abrir ningún modal.
+function filaBloqueo(b,seccion){
+  const tr=document.createElement('tr');
+  tr.style.cssText='background:var(--gris2)';
+  tr.innerHTML='<td><b>'+(b.habitacion||'—')+'</b></td>'
+    +'<td colspan="8" style="font-size:11px;color:var(--gris6)">🔒 Bloqueada — '+(b.motivo||'—')+(b.notas?' · '+b.notas:'')+' · Desde '+(b.fechaBloqueo||'—')+(b.horaBloqueo?' '+b.horaBloqueo:'')+'</td>'
+    +'<td></td>';
+  const btnLib=document.createElement('button');
+  btnLib.className='btn btn-ghost btn-sm'; btnLib.textContent='✓ Liberar';
+  (function(bid){ btnLib.onclick=function(e){ e.stopPropagation(); requirePin(function(){ liberarBloqueo(bid,seccion,false); }); }; })(b.id);
+  tr.lastElementChild.appendChild(btnLib);
+  return tr;
 }
 
 function renderHosp(){
   const data=filtrarActivos(DB.hosp);
+  const bloqueadas=camasBloqueadas('hosp');
   const tbody=document.getElementById('hosp-tbody');
   const empty=document.getElementById('hosp-empty');
   const hoy=dk(cur);
   document.getElementById('hosp-count').textContent=data.length+' paciente'+(data.length!==1?'s':'')+' activo'+(data.length!==1?'s':'')+(DB.hosp.length!==data.length?' (de '+DB.hosp.length+' total)':'');
   renderCamasHosp();
   while(tbody.firstChild) tbody.removeChild(tbody.firstChild);
-  if(!data.length){ empty.style.display='block'; return; }
+  if(!data.length&&!bloqueadas.length){ empty.style.display='block'; return; }
   empty.style.display='none';
-  data.forEach(function(r){
+  const filas=[
+    ...data.map(r=>({tipo:'paciente',habitacion:r.habitacion,r:r})),
+    ...bloqueadas.map(b=>({tipo:'bloqueo',habitacion:b.habitacion,b:b}))
+  ].sort((a,b)=>String(a.habitacion||'').localeCompare(String(b.habitacion||''),undefined,{numeric:true}));
+  filas.forEach(function(item){
+    if(item.tipo==='bloqueo'){ tbody.appendChild(filaBloqueo(item.b,'hosp')); return; }
+    const r=item.r;
     const egresaHoy=r.fechaEgreso===hoy;
     const tr=document.createElement('tr');
     tr.style.cssText=egresaHoy?'background:#BBF7D0;cursor:pointer':'cursor:pointer';
@@ -942,15 +968,22 @@ function renderHosp(){
 
 function renderUCI(){
   const data=filtrarActivos(DB.uci);
+  const bloqueadas=camasBloqueadas('uci');
   const tbody=document.getElementById('uci-tbody');
   const empty=document.getElementById('uci-empty');
   const hoy=dk(cur);
   document.getElementById('uci-count').textContent=data.length+' paciente'+(data.length!==1?'s':'')+' activo'+(data.length!==1?'s':'');
   renderCamasUCI();
   while(tbody.firstChild) tbody.removeChild(tbody.firstChild);
-  if(!data.length){ empty.style.display='block'; return; }
+  if(!data.length&&!bloqueadas.length){ empty.style.display='block'; return; }
   empty.style.display='none';
-  data.forEach(function(r){
+  const filas=[
+    ...data.map(r=>({tipo:'paciente',habitacion:r.habitacion,r:r})),
+    ...bloqueadas.map(b=>({tipo:'bloqueo',habitacion:b.habitacion,b:b}))
+  ].sort((a,b)=>String(a.habitacion||'').localeCompare(String(b.habitacion||''),undefined,{numeric:true}));
+  filas.forEach(function(item){
+    if(item.tipo==='bloqueo'){ tbody.appendChild(filaBloqueo(item.b,'uci')); return; }
+    const r=item.r;
     const egresaHoy=r.fechaEgreso===hoy;
     const tr=document.createElement('tr');
     tr.style.cssText=egresaHoy?'background:#BBF7D0;cursor:pointer':'cursor:pointer';
@@ -1019,14 +1052,16 @@ ${!isUCI?`<div class="form-group"><label>¿Proviene de Oncológica?</label><sele
 <div class="form-group full"><label>Observaciones</label><input id="p-estclin" value="${rec.estadoClin||''}" placeholder="Notas clínicas relevantes del turno"></div>
 </div>
 <div class="section-lbl">Dispositivos invasivos — acceso IV</div>
-<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:8px;margin-bottom:10px">
-  <div class="form-group"><label>Acceso IV 1</label><input id="p-iv1" value="${rec.accesoIV||''}" placeholder="CPC, CVC, PICC…"></div>
+<div style="display:grid;grid-template-columns:1fr 1.5fr 1fr 1fr 1fr;gap:8px;margin-bottom:10px">
+  <div class="form-group"><label>Acceso IV 1 — Tipo</label><select id="p-iv1-tipo"><option value="">— Sin clasificar —</option><option value="CVP"${rec.accesoIV1Tipo==='CVP'?' selected':''}>CVP (periférico)</option><option value="CVC"${rec.accesoIV1Tipo==='CVC'?' selected':''}>CVC (central)</option><option value="PICC"${rec.accesoIV1Tipo==='PICC'?' selected':''}>PICC</option></select></div>
+  <div class="form-group"><label>Detalle (sitio, marca…)</label><input id="p-iv1" value="${rec.accesoIV||''}" placeholder="Ej. yugular derecha, subclavia…"></div>
   <div class="form-group"><label>Fecha instalación</label><input type="date" id="p-iv1f" value="${rec.accesoIV1Fecha||''}" onchange="diasDispositivo('p-iv1f','p-iv1ret','p-iv1-dias')"></div>
   <div class="form-group"><label>Fecha retiro</label><input type="date" id="p-iv1ret" value="${rec.accesoIV1Retiro||''}" onchange="diasDispositivo('p-iv1f','p-iv1ret','p-iv1-dias')"></div>
   <div class="form-group"><label>Días permanencia</label><div id="p-iv1-dias" style="padding:7px 10px;border:1px solid var(--gris2);border-radius:7px;font-size:13px;background:var(--gris0);min-height:35px">—</div></div>
 </div>
-<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:8px;margin-bottom:10px">
-  <div class="form-group"><label>Acceso IV 2</label><input id="p-iv2" value="${rec.accesoIV2||''}" placeholder="CPC, CVC, PICC…"></div>
+<div style="display:grid;grid-template-columns:1fr 1.5fr 1fr 1fr 1fr;gap:8px;margin-bottom:10px">
+  <div class="form-group"><label>Acceso IV 2 — Tipo</label><select id="p-iv2-tipo"><option value="">— Sin clasificar —</option><option value="CVP"${rec.accesoIV2Tipo==='CVP'?' selected':''}>CVP (periférico)</option><option value="CVC"${rec.accesoIV2Tipo==='CVC'?' selected':''}>CVC (central)</option><option value="PICC"${rec.accesoIV2Tipo==='PICC'?' selected':''}>PICC</option></select></div>
+  <div class="form-group"><label>Detalle (sitio, marca…)</label><input id="p-iv2" value="${rec.accesoIV2||''}" placeholder="Ej. yugular derecha, subclavia…"></div>
   <div class="form-group"><label>Fecha instalación</label><input type="date" id="p-iv2f" value="${rec.accesoIV2Fecha||''}" onchange="diasDispositivo('p-iv2f','p-iv2ret','p-iv2-dias')"></div>
   <div class="form-group"><label>Fecha retiro</label><input type="date" id="p-iv2ret" value="${rec.accesoIV2Retiro||''}" onchange="diasDispositivo('p-iv2f','p-iv2ret','p-iv2-dias')"></div>
   <div class="form-group"><label>Días permanencia</label><div id="p-iv2-dias" style="padding:7px 10px;border:1px solid var(--gris2);border-radius:7px;font-size:13px;background:var(--gris0);min-height:35px">—</div></div>
@@ -1090,6 +1125,8 @@ ${!isUCI?`<div class="form-group"><label>¿Proviene de Oncológica?</label><sele
 <div class="form-group"><label>Fecha de caída</label><input type="date" id="p-caida-fecha" value="${rec.caídaFecha||''}"></div>
 <div class="form-group"><label>¿Presentó LPP?</label><select id="p-lpp-ev"><option value="">—</option><option${rec.lppEvento==='Sí'?' selected':''}>Sí</option><option${rec.lppEvento==='No'?' selected':''}>No</option></select></div>
 <div class="form-group"><label>Grado LPP</label><select id="p-lpp-grado"><option value="">—</option>${['Grado I','Grado II','Grado III','Grado IV'].map(g=>`<option${rec.lppGrado===g?' selected':''}>${g}</option>`).join('')}</select></div>
+<div class="form-group"><label>Fecha de detección LPP</label><input type="date" id="p-lpp-fecha" value="${rec.lppFecha||''}"></div>
+<div class="form-group"><label>¿Llegó así desde casa?</label><select id="p-lpp-desde-casa"><option value="">—</option><option${rec.lppDesdeCasa==='Sí'?' selected':''}>Sí</option><option${rec.lppDesdeCasa==='No'?' selected':''}>No</option></select></div>
 <div class="form-group"><label>¿Infección detectada?</label><select id="p-inf-ev"><option value="">—</option><option${rec.infeccionEvento==='Sí'?' selected':''}>Sí</option><option${rec.infeccionEvento==='No'?' selected':''}>No</option></select></div>
 <div class="form-group"><label>Tipo de infección</label><select id="p-inf-tipo"><option value="">—</option>${['ITUAC (sonda Foley)','IPPSC (catéter IV)','NAVM (ventilación mecánica)','Neumonía','IHQ (herida quirúrgica)','Sepsis','Otra'].map(t=>`<option value="${t}"${rec.infeccionTipo===t?' selected':''}>${t}</option>`).join('')}</select></div>
 <div class="form-group"><label>Agente infeccioso</label><input id="p-inf-agente" value="${rec.infeccionAgente||''}" placeholder="Ej. E. coli, S. aureus…" list="agentes-list"><datalist id="agentes-list"><option>E. coli</option><option>S. aureus (MRSA)</option><option>S. aureus (MSSA)</option><option>Klebsiella pneumoniae</option><option>Pseudomonas aeruginosa</option><option>Acinetobacter baumannii</option><option>Enterococcus spp.</option><option>Candida albicans</option><option>Candida spp.</option><option>Clostridium difficile</option><option>Enterobacter spp.</option><option>Proteus mirabilis</option><option>Streptococcus spp.</option><option>Pendiente cultivo</option><option>No identificado</option></datalist></div>
@@ -1308,9 +1345,11 @@ async function guardarPaciente(id,seccion){
     monitoreo:document.getElementById('p-mon').value,
     estadoClin:document.getElementById('p-estclin').value.trim(),
     accesoIV:document.getElementById('p-iv1').value.trim(),
+    accesoIV1Tipo:document.getElementById('p-iv1-tipo').value,
     accesoIV1Fecha:document.getElementById('p-iv1f').value,
     accesoIV1Retiro:document.getElementById('p-iv1ret').value,
     accesoIV2:document.getElementById('p-iv2').value.trim(),
+    accesoIV2Tipo:document.getElementById('p-iv2-tipo').value,
     accesoIV2Fecha:document.getElementById('p-iv2f').value,
     accesoIV2Retiro:document.getElementById('p-iv2ret').value,
     sondaFoley:document.getElementById('p-foley').value,
@@ -1342,6 +1381,8 @@ async function guardarPaciente(id,seccion){
     caídaFecha:document.getElementById('p-caida-fecha').value,
     lppEvento:document.getElementById('p-lpp-ev').value,
     lppGrado:document.getElementById('p-lpp-grado').value,
+    lppFecha:document.getElementById('p-lpp-fecha').value,
+    lppDesdeCasa:document.getElementById('p-lpp-desde-casa').value,
     infeccionEvento:document.getElementById('p-inf-ev').value,
     infeccionTipo:document.getElementById('p-inf-tipo').value,
     infeccionAgente:document.getElementById('p-inf-agente').value.trim(),
@@ -1705,15 +1746,20 @@ function renderConcentrado(){
   const caidasDetalle=[...caidasHArr.map(r=>({seccion:'hosp',habitacion:r.habitacion,nombre:r.nombre,fecha:fechaEvento(r['caídaFecha'],r)})),
                         ...caidasUArr.map(r=>({seccion:'uci',habitacion:r.habitacion,nombre:r.nombre,fecha:fechaEvento(r['caídaFecha'],r)}))]
                         .sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||''));
-  // LPP no tiene campo de fecha propia (no existe "lppFecha" en el modelo),
-  // así que se atribuye al mes de ingreso del paciente — el detalle usa esa
-  // misma fecha de ingreso como aproximación, aclarado en el modal.
-  const lppHArr=hosp.filter(r=>r.lppEvento==='Sí'&&ocurrioEnMes('',r));
-  const lppUArr=uci.filter(r=>r.lppEvento==='Sí'&&ocurrioEnMes('',r));
-  const nLPP=lppHArr.length+lppUArr.length;
+  // LPP ya tiene fecha propia (lppFecha, igual que caídaFecha) — si un
+  // registro histórico no la tiene capturada, fechaEvento() cae de
+  // vuelta a la fecha de ingreso como mejor aproximación disponible.
+  // Las marcadas "¿Llegó así desde casa?" = Sí se muestran en el
+  // detalle (para no perder el dato) pero se excluyen del numerador de
+  // la Tasa de LPP, que debe medir solo lesiones adquiridas en el
+  // hospital, no las que el paciente ya traía al ingresar.
+  const lppHArr=hosp.filter(r=>r.lppEvento==='Sí'&&ocurrioEnMes(r.lppFecha,r));
+  const lppUArr=uci.filter(r=>r.lppEvento==='Sí'&&ocurrioEnMes(r.lppFecha,r));
+  const esAdquiridaHospital=r=>r.lppDesdeCasa!=='Sí';
+  const nLPP=lppHArr.filter(esAdquiridaHospital).length+lppUArr.filter(esAdquiridaHospital).length;
   const tasaLPP=todos.length>0?Math.round(nLPP/todos.length*1000)/10:null;
-  const lppDetalle=[...lppHArr.map(r=>({seccion:'hosp',habitacion:r.habitacion,nombre:r.nombre,fecha:fechaEvento('',r)})),
-                     ...lppUArr.map(r=>({seccion:'uci',habitacion:r.habitacion,nombre:r.nombre,fecha:fechaEvento('',r)}))]
+  const lppDetalle=[...lppHArr.map(r=>({seccion:'hosp',habitacion:r.habitacion,nombre:r.nombre,fecha:fechaEvento(r.lppFecha,r),origen:r.lppDesdeCasa==='Sí'?'Desde casa':'Hospitalaria'})),
+                     ...lppUArr.map(r=>({seccion:'uci',habitacion:r.habitacion,nombre:r.nombre,fecha:fechaEvento(r.lppFecha,r),origen:r.lppDesdeCasa==='Sí'?'Desde casa':'Hospitalaria'}))]
                      .sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||''));
 
   const infHosp=hosp.filter(r=>r.infeccionEvento==='Sí'&&ocurrioEnMes(r.infeccionFecha,r));
@@ -1746,8 +1792,16 @@ function renderConcentrado(){
   // Si el texto no tiene ninguna de esas marcas no se clasifica en
   // ninguno de los dos (no se inventa un tipo).
   function diasEnRango(ini,fin){ const d=diasEntreFechas(ini,fin); return d!==null?Math.max(0,d+1):0; }
-  function tipoCateterIV(texto){
-    const t=String(texto||'').toUpperCase();
+  // Prioriza el campo de tipo explícito (menú CVP/CVC/PICC capturado en
+  // el formulario) sobre el texto libre — más confiable porque no
+  // depende de cómo cada quien lo redacte. Si el registro es de antes
+  // de que existiera ese campo (histórico), usa la misma heurística de
+  // texto libre de antes como respaldo, para no perder su clasificación.
+  function tipoCateterIV(r,campoTipo,campoTexto){
+    const explicito=r[campoTipo];
+    if(explicito==='CVP') return 'CVP';
+    if(explicito==='CVC'||explicito==='PICC') return 'CVC';
+    const t=String(r[campoTexto]||'').toUpperCase();
     if(!t) return null;
     if(t.includes('CVC')||t.includes('PICC')) return 'CVC';
     if(t.includes('CVP')||t.includes('CPC')) return 'CVP';
@@ -1768,9 +1822,9 @@ function renderConcentrado(){
   function detalleCateterPorTipo(arr,seccion,tipoObjetivo){
     const filas=[];
     arr.forEach(function(r){
-      [['accesoIV','accesoIV1Fecha','accesoIV1Retiro'],['accesoIV2','accesoIV2Fecha','accesoIV2Retiro']].forEach(function(slot){
-        const campoTexto=slot[0],campoFecha=slot[1],campoRetiro=slot[2];
-        if(tipoCateterIV(r[campoTexto])!==tipoObjetivo) return;
+      [['accesoIV','accesoIV1Fecha','accesoIV1Retiro','accesoIV1Tipo'],['accesoIV2','accesoIV2Fecha','accesoIV2Retiro','accesoIV2Tipo']].forEach(function(slot){
+        const campoTexto=slot[0],campoFecha=slot[1],campoRetiro=slot[2],campoTipo=slot[3];
+        if(tipoCateterIV(r,campoTipo,campoTexto)!==tipoObjetivo) return;
         const ini=r[campoFecha]||''; if(!ini||!esFecha(ini)) return;
         const finReal=esFecha(r[campoRetiro])?r[campoRetiro]:finMes;
         const ie=ini<inicioMes?inicioMes:ini; const fe=finReal>finMes?finMes:finReal;
@@ -2119,8 +2173,8 @@ const DETALLE_INDICADOR_CFG={
   caidas:{titulo:'🟠 Caídas',nota:'',cols:[
     {header:'Hab./Sala',render:HAB_O_SALA},{header:'Nombre',render:p=>p.nombre||'—'},{header:'Fecha de la caída',render:p=>p.fecha||'—'}
   ]},
-  lpp:{titulo:'🔴 Lesiones por Presión (LPP)',nota:'LPP no tiene una fecha propia capturada en el modelo — se muestra la fecha de ingreso como aproximación.',cols:[
-    {header:'Hab./Sala',render:HAB_O_SALA},{header:'Nombre',render:p=>p.nombre||'—'},{header:'Fecha',render:p=>p.fecha||'—'}
+  lpp:{titulo:'🔴 Lesiones por Presión (LPP)',nota:'Se incluyen todas las LPP del mes (también las marcadas "Desde casa"), pero la Tasa de LPP solo cuenta las adquiridas en el hospital.',cols:[
+    {header:'Hab./Sala',render:HAB_O_SALA},{header:'Nombre',render:p=>p.nombre||'—'},{header:'Fecha',render:p=>p.fecha||'—'},{header:'Origen',render:p=>p.origen==='Desde casa'?'<span style="color:var(--gris5)">Desde casa</span>':'<span style="color:var(--rojo);font-weight:600">Hospitalaria</span>'}
   ]},
   mortalidad:{titulo:'⚰ Defunciones',nota:'',cols:[
     {header:'Servicio',render:p=>p.servicio||'—'},{header:'Nombre',render:p=>p.nombre||'—'},{header:'Fecha de defunción',render:p=>p.fecha||'—'}
@@ -2128,10 +2182,10 @@ const DETALLE_INDICADOR_CFG={
   foley:{titulo:'💧 Días-Sonda Foley',nota:'',cols:[
     {header:'Hab./Sala',render:HAB_O_SALA},{header:'Nombre',render:p=>p.nombre||'—'},{header:'Instalación',render:p=>p.fechaInstalacion||'—'},{header:'Retiro',render:RETIRO_O_ACTIVO},{header:'Días en el mes',render:p=>p.dias}
   ]},
-  cvp:{titulo:'💧 Días-Catéter CVP (periférico)',nota:'Se clasifica como CVP un acceso IV cuyo texto capturado contiene "CVP" o "CPC".',cols:[
+  cvp:{titulo:'💧 Días-Catéter CVP (periférico)',nota:'Se clasifica como CVP el acceso IV marcado con ese tipo en el formulario (o, en registros antiguos sin ese campo, un texto capturado que contiene "CVP"/"CPC").',cols:[
     {header:'Hab./Sala',render:HAB_O_SALA},{header:'Nombre',render:p=>p.nombre||'—'},{header:'Instalación',render:p=>p.fechaInstalacion||'—'},{header:'Retiro',render:RETIRO_O_ACTIVO},{header:'Días en el mes',render:p=>p.dias}
   ]},
-  cvc:{titulo:'💧 Días-Catéter CVC (central)',nota:'Se clasifica como CVC un acceso IV cuyo texto capturado contiene "CVC" o "PICC".',cols:[
+  cvc:{titulo:'💧 Días-Catéter CVC (central)',nota:'Se clasifica como CVC el acceso IV marcado con ese tipo (CVC o PICC) en el formulario (o, en registros antiguos sin ese campo, un texto capturado que contiene "CVC"/"PICC").',cols:[
     {header:'Hab./Sala',render:HAB_O_SALA},{header:'Nombre',render:p=>p.nombre||'—'},{header:'Instalación',render:p=>p.fechaInstalacion||'—'},{header:'Retiro',render:RETIRO_O_ACTIVO},{header:'Días en el mes',render:p=>p.dias}
   ]}
 };
