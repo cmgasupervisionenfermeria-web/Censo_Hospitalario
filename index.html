@@ -475,7 +475,7 @@ let concentradoEspData={};
 // Detalle de pacientes detrás de las tarjetas de Caídas/LPP/Mortalidad del
 // Concentrado — se recalcula en cada renderConcentrado() y lo usa
 // verDetalleIndicador() al hacer clic en una de esas tres tarjetas.
-let concentradoDetalleData={caidas:[],lpp:[],mortalidad:[],foley:[],cvp:[],cvc:[]};
+let concentradoDetalleData={caidas:[],lpp:[],mortalidad:[],foley:[],cvp:[],cvc:[],reingresos:[]};
 function escAttr(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
 let concentradoEsperandoHistorial=false;
 let buscarEsperandoHistorial=false;
@@ -1650,12 +1650,25 @@ function renderConcentrado(){
   const egresosUCI=uci.filter(r=>esFecha(r.fechaEgreso)&&r.fechaEgreso>=inicioMes&&r.fechaEgreso<=finMes);
   const totalEgresos=egresosHosp.length+egresosUCI.length;
 
+  // Un traslado interno Hosp<->UCI (confirmarTraslado) cierra el registro
+  // de origen con fechaEgreso = la misma fecha en que abre el nuevo
+  // ingreso en la sección destino — el paciente nunca salió del
+  // hospital, solo cambió de sección el mismo día. Si contáramos ese
+  // día en ambos registros (el de salida Y el de entrada) se duplicaría
+  // un día-cama que en realidad es uno solo. Por eso, cuando el egreso
+  // de un registro es uno de esos traslados internos, no se cuenta ese
+  // último día aquí — lo cuenta el registro de la sección destino como
+  // su propio día de ingreso.
+  function esTrasladoInterno(r){ return r.destinoEgreso==='UCI'||r.destinoEgreso==='Hospitalización'; }
   function pacDia(arr){
     return arr.reduce((sum,r)=>{
       const ing=r.fechaIngreso||r.fecha||''; const egr=esFecha(r.fechaEgreso)?r.fechaEgreso:finMes;
       if(!ing||!esFecha(ing)) return sum;
       const ie=ing<inicioMes?inicioMes:ing; const fe=egr>finMes?finMes:egr;
-      const d=diasEntreFechas(ie,fe); return sum+(d!==null?Math.max(0,d+1):0);
+      const d=diasEntreFechas(ie,fe);
+      let dias=d!==null?Math.max(0,d+1):0;
+      if(dias>0&&esTrasladoInterno(r)&&esFecha(r.fechaEgreso)&&r.fechaEgreso>=inicioMes&&r.fechaEgreso<=finMes) dias=Math.max(0,dias-1);
+      return sum+dias;
     },0);
   }
   const pdHosp=pacDia(hosp), pdUCI=pacDia(uci), pdTodos=pdHosp+pdUCI;
@@ -1713,14 +1726,47 @@ function renderConcentrado(){
   }
   const intervaloSust=calcIntervalo([...DB.hosp,...DB.uci]);
 
+  // Un traslado interno (Hosp<->UCI) NO es un egreso real del hospital
+  // — el paciente nunca salió — así que no debe evaluarse como "se
+  // reingresó o no en 30 días". Sin este filtro, un paciente que va
+  // Hosp -> UCI -> Hosp de vuelta (una sola hospitalización continua)
+  // se contaba por error como un reingreso, porque el egreso del
+  // traslado inicial (Hosp -> UCI) encontraba el ingreso de vuelta a
+  // Hosp varios días después como si fuera una readmisión nueva.
   let nReingresos=0;
   const todosConExp=[...DB.hosp,...DB.uci].filter(r=>r.expediente);
-  [...egresosHosp,...egresosUCI].forEach(egr=>{
+  const egresosRealesParaReingreso=[...egresosHosp,...egresosUCI].filter(egr=>!esTrasladoInterno(egr));
+  // Para el detalle clicable: además de contar, se guarda el registro del
+  // reingreso (nuevo ingreso dentro de los 30 días) junto con los datos de
+  // la hospitalización anterior (la que cerró con ese egreso), para poder
+  // mostrar ambas en el modal de detalle.
+  const reingresosDetalle=[];
+  egresosRealesParaReingreso.forEach(egr=>{
     if(!egr.expediente||!egr.fechaEgreso||!esFecha(egr.fechaEgreso)) return;
     const tsE=new Date(egr.fechaEgreso+'T12:00');
-    if(todosConExp.some(r=>r.id!==egr.id&&r.expediente===egr.expediente&&(()=>{ const fi=r.fechaIngreso||r.fecha; if(!fi||!esFecha(fi)) return false; const d=(new Date(fi+'T12:00')-tsE)/(1000*60*60*24); return d>0&&d<=30; })())){ nReingresos++; }
+    const reingreso=todosConExp.find(r=>r.id!==egr.id&&r.expediente===egr.expediente&&(()=>{ const fi=r.fechaIngreso||r.fecha; if(!fi||!esFecha(fi)) return false; const d=(new Date(fi+'T12:00')-tsE)/(1000*60*60*24); return d>0&&d<=30; })());
+    if(reingreso){
+      nReingresos++;
+      const fiReing=reingreso.fechaIngreso||reingreso.fecha||'';
+      const diasEntre=esFecha(fiReing)?Math.round((new Date(fiReing+'T12:00')-tsE)/(1000*60*60*24)):null;
+      reingresosDetalle.push({
+        seccion:DB.uci.includes(reingreso)?'uci':'hosp',
+        habitacion:reingreso.habitacion,
+        nombre:reingreso.nombre,
+        fecha:fiReing,
+        seccionAnterior:DB.uci.includes(egr)?'uci':'hosp',
+        habitacionAnterior:egr.habitacion,
+        fechaIngresoAnterior:egr.fechaIngreso||egr.fecha||'',
+        fechaEgresoAnterior:egr.fechaEgreso,
+        diasEntre
+      });
+    }
   });
-  const pctReingresos=totalEgresos>0?Math.round(nReingresos/totalEgresos*1000)/10:null;
+  reingresosDetalle.sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||''));
+  // El % usa como base los egresos reales (sin traslados internos), no
+  // "totalEgresos" (que si incluye traslados) — para que numerador y
+  // denominador midan lo mismo.
+  const pctReingresos=egresosRealesParaReingreso.length>0?Math.round(nReingresos/egresosRealesParaReingreso.length*1000)/10:null;
 
   // Un paciente cuya estancia abarca más de un mes aparece en "hosp"/"uci"/
   // "todos" de CADA mes que toca (correcto para ocupación/días-paciente),
@@ -1848,15 +1894,22 @@ function renderConcentrado(){
   const diasCVCH=cvcDetalleH.reduce((s,r)=>s+r.dias,0), diasCVCU=cvcDetalleU.reduce((s,r)=>s+r.dias,0), diasCVCTotal=diasCVCH+diasCVCU;
   const cvcDetalle=[...cvcDetalleH,...cvcDetalleU].sort((a,b)=>(a.fechaInstalacion||'').localeCompare(b.fechaInstalacion||''));
 
-  concentradoDetalleData={caidas:caidasDetalle,lpp:lppDetalle,mortalidad:mortalidadDetalle,foley:foleyDetalle,cvp:cvpDetalle,cvc:cvcDetalle};
+  concentradoDetalleData={caidas:caidasDetalle,lpp:lppDetalle,mortalidad:mortalidadDetalle,foley:foleyDetalle,cvp:cvpDetalle,cvc:cvcDetalle,reingresos:reingresosDetalle};
 
   const hoyStr=dk(new Date());
   const fechaRefH=finMes<=hoyStr?finMes:hoyStr;
+  // Mismo cuidado que en pacDia(): el día exacto de un traslado interno
+  // Hosp<->UCI no debe contar al paciente como "activo" en la sección de
+  // ORIGEN ese día — ya cuenta como activo en la sección DESTINO (su
+  // nuevo ingreso ese mismo día). Sin esto, un paciente trasladado hoy
+  // aparecía con NAS en Hospitalización Y en UCI el mismo día, inflando
+  // ambos conteos de pacientes activos y de enfermeras necesarias.
   function activosEnFecha(arr,fechaRef){
     return arr.filter(r=>{
       const ing=r.fechaIngreso||r.fecha||'';
       if(!ing||!esFecha(ing)||ing>fechaRef) return false;
       if(esFecha(r.fechaEgreso)&&r.fechaEgreso<fechaRef) return false;
+      if(esFecha(r.fechaEgreso)&&r.fechaEgreso===fechaRef&&esTrasladoInterno(r)) return false;
       return true;
     });
   }
@@ -1971,7 +2024,7 @@ function renderConcentrado(){
           <div style="flex:1;text-align:center;background:var(--rojo3);border-radius:8px;padding:10px"><div style="font-size:10px;font-weight:700;color:var(--rojo)">UCI / UCIM</div><div style="font-size:28px;font-weight:700;color:var(--rojo)">${diasCVPU}</div></div>
           <div style="flex:1;text-align:center;background:var(--verde3);border-radius:8px;padding:10px"><div style="font-size:10px;font-weight:700;color:var(--verde)">TOTAL</div><div style="font-size:28px;font-weight:700;color:var(--verde)">${diasCVPTotal}</div></div>
         </div>
-        <div style="font-size:10px;color:var(--gris4)">Catéter venoso periférico — días con acceso IV cuyo texto capturado contiene "CVP" o "CPC".</div>
+        <div style="font-size:10px;color:var(--gris4)">Catéter venoso periférico — clasificado por el menú "Tipo" del acceso IV (o, en registros antiguos sin ese campo, por el texto capturado que contiene "CVP"/"CPC").</div>
       </div>
       <div class="ind-card" style="cursor:pointer" onclick="verDetalleIndicador('cvc')" title="Ver detalle de pacientes">
         <div class="ind-hdr"><div class="ind-dot" style="background:var(--morado)"></div><span class="ind-ttl">Días-Catéter CVC 🔍</span></div>
@@ -1980,7 +2033,7 @@ function renderConcentrado(){
           <div style="flex:1;text-align:center;background:var(--rojo3);border-radius:8px;padding:10px"><div style="font-size:10px;font-weight:700;color:var(--rojo)">UCI / UCIM</div><div style="font-size:28px;font-weight:700;color:var(--rojo)">${diasCVCU}</div></div>
           <div style="flex:1;text-align:center;background:var(--morado3);border-radius:8px;padding:10px"><div style="font-size:10px;font-weight:700;color:var(--morado)">TOTAL</div><div style="font-size:28px;font-weight:700;color:var(--morado)">${diasCVCTotal}</div></div>
         </div>
-        <div style="font-size:10px;color:var(--gris4)">Catéter venoso central (incluye PICC) — días con acceso IV cuyo texto capturado contiene "CVC" o "PICC".</div>
+        <div style="font-size:10px;color:var(--gris4)">Catéter venoso central (incluye PICC) — clasificado por el menú "Tipo" del acceso IV (o, en registros antiguos sin ese campo, por el texto capturado que contiene "CVC"/"PICC").</div>
       </div>
     </div>
     <div class="ind-grid-3" style="margin-bottom:12px">
@@ -1990,7 +2043,7 @@ function renderConcentrado(){
       ${ic('var(--verde)','Estancia Promedio','Σ días egresados ÷ total egresos',estanciaPromedio!==null?estanciaPromedio+' días':'—',`${sumaEstancia} días ÷ ${totalEgresos} egresos`,estanciaPromedio?Math.min(estanciaPromedio/10*100,100):0)}
       ${ic('var(--az2)','Índice de Rotación (Piso)','egresos piso ÷ 18 camas',rotacion+' veces',`${egresosHosp.length} egresos ÷ ${CAMAS_HOSP} camas. Meta ≥3/mes`,Math.min(rotacion/5*100,100))}
       ${ic('var(--cyan)','Intervalo de Sustitución','horas entre egreso e ingreso — misma hab.',intervaloSust!==null?intervaloSust+' h':'—',intervaloSust!==null?'Promedio parejas egreso-ingreso consecutivos. Meta <4h':'Requiere horaEgreso y horaIngreso registradas.',intervaloSust?Math.min(intervaloSust/8*100,100):0)}
-      ${ic('var(--morado)','Reingresos a 30 días','(reingresos ÷ egresos) × 100',pctReingresos!==null?pctReingresos+'%':'—',`${nReingresos} reingresaron en ≤30 días de ${totalEgresos} egresos`,Math.min(pctReingresos||0,100))}
+      ${ic('var(--morado)','Reingresos a 30 días','(reingresos ÷ egresos reales) × 100',pctReingresos!==null?pctReingresos+'%':'—',`${nReingresos} reingresaron en ≤30 días de ${egresosRealesParaReingreso.length} egresos reales (no cuenta traslados internos Hosp↔UCI)`,Math.min(pctReingresos||0,100),"verDetalleIndicador('reingresos')")}
     </div>
     <div class="ind-grid-3" style="margin-bottom:12px">
       <div class="group-title">⚠ Seguridad del Paciente</div>
@@ -2082,8 +2135,8 @@ function renderConcentrado(){
         const filas=[];
         for(let d=1;d<=diasMes;d++){
           const fechaDia=`${anio}-${String(mes+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-          const hActivos=DB.hosp.filter(r=>{ const ing=r.fechaIngreso||r.fecha||''; if(!ing||!esFecha(ing)||ing>fechaDia) return false; if(esFecha(r.fechaEgreso)&&r.fechaEgreso<fechaDia) return false; return true; });
-          const uActivos=DB.uci.filter(r=>{ const ing=r.fechaIngreso||r.fecha||''; if(!ing||!esFecha(ing)||ing>fechaDia) return false; if(esFecha(r.fechaEgreso)&&r.fechaEgreso<fechaDia) return false; return true; });
+          const hActivos=activosEnFecha(DB.hosp,fechaDia);
+          const uActivos=activosEnFecha(DB.uci,fechaDia);
           if(hActivos.length===0&&uActivos.length===0) continue;
           const nhD={Básico:0,Moderado:0,'Alta complejidad':0,Crítico:0};
           hActivos.forEach(r=>{ const n=inferirNAS(r); nhD[n.nivel]++; });
@@ -2187,6 +2240,15 @@ const DETALLE_INDICADOR_CFG={
   ]},
   cvc:{titulo:'💧 Días-Catéter CVC (central)',nota:'Se clasifica como CVC el acceso IV marcado con ese tipo (CVC o PICC) en el formulario (o, en registros antiguos sin ese campo, un texto capturado que contiene "CVC"/"PICC").',cols:[
     {header:'Hab./Sala',render:HAB_O_SALA},{header:'Nombre',render:p=>p.nombre||'—'},{header:'Instalación',render:p=>p.fechaInstalacion||'—'},{header:'Retiro',render:RETIRO_O_ACTIVO},{header:'Días en el mes',render:p=>p.dias}
+  ]},
+  reingresos:{titulo:'🟣 Reingresos a 30 días',nota:'No incluye traslados internos Hosp↔UCI/UCIM (no son una readmisión real, el paciente nunca salió del hospital).',cols:[
+    {header:'Hab./Sala (reingreso)',render:HAB_O_SALA},
+    {header:'Nombre',render:p=>p.nombre||'—'},
+    {header:'Fecha de reingreso',render:p=>p.fecha||'—'},
+    {header:'Días desde el egreso anterior',render:p=>p.diasEntre!==null&&p.diasEntre!==undefined?p.diasEntre:'—'},
+    {header:'Hospitalización anterior — Hab./Sala',render:p=>`${p.seccionAnterior==='uci'?'Sala':'Hab.'} ${p.habitacionAnterior||'—'}`},
+    {header:'Hospitalización anterior — Ingreso',render:p=>p.fechaIngresoAnterior||'—'},
+    {header:'Hospitalización anterior — Egreso',render:p=>p.fechaEgresoAnterior||'—'}
   ]}
 };
 function verDetalleIndicador(tipo){
