@@ -1754,10 +1754,17 @@ function renderConcentrado(){
         habitacion:reingreso.habitacion,
         nombre:reingreso.nombre,
         fecha:fiReing,
+        diagnostico:reingreso.diagnostico||'',
+        procedimiento:reingreso.procedimiento||'',
+        fechaProcedimiento:reingreso.fechaProcedimiento||'',
+        fechaEgreso:reingreso.fechaEgreso||'',
         seccionAnterior:DB.uci.includes(egr)?'uci':'hosp',
         habitacionAnterior:egr.habitacion,
         fechaIngresoAnterior:egr.fechaIngreso||egr.fecha||'',
         fechaEgresoAnterior:egr.fechaEgreso,
+        diagnosticoAnterior:egr.diagnostico||'',
+        procedimientoAnterior:egr.procedimiento||'',
+        fechaProcedimientoAnterior:egr.fechaProcedimiento||'',
         diasEntre
       });
     }
@@ -2241,32 +2248,58 @@ const DETALLE_INDICADOR_CFG={
   cvc:{titulo:'💧 Días-Catéter CVC (central)',nota:'Se clasifica como CVC el acceso IV marcado con ese tipo (CVC o PICC) en el formulario (o, en registros antiguos sin ese campo, un texto capturado que contiene "CVC"/"PICC").',cols:[
     {header:'Hab./Sala',render:HAB_O_SALA},{header:'Nombre',render:p=>p.nombre||'—'},{header:'Instalación',render:p=>p.fechaInstalacion||'—'},{header:'Retiro',render:RETIRO_O_ACTIVO},{header:'Días en el mes',render:p=>p.dias}
   ]},
-  reingresos:{titulo:'🟣 Reingresos a 30 días',nota:'No incluye traslados internos Hosp↔UCI/UCIM (no son una readmisión real, el paciente nunca salió del hospital).',cols:[
+  reingresos:{titulo:'🟣 Reingresos a 30 días',nota:'No incluye traslados internos Hosp↔UCI/UCIM (no son una readmisión real, el paciente nunca salió del hospital). Haz clic en un paciente para comparar el diagnóstico y procedimiento de ambas hospitalizaciones.',cols:[
     {header:'Hab./Sala (reingreso)',render:HAB_O_SALA},
     {header:'Nombre',render:p=>p.nombre||'—'},
     {header:'Fecha de reingreso',render:p=>p.fecha||'—'},
-    {header:'Días desde el egreso anterior',render:p=>p.diasEntre!==null&&p.diasEntre!==undefined?p.diasEntre:'—'},
-    {header:'Hospitalización anterior — Hab./Sala',render:p=>`${p.seccionAnterior==='uci'?'Sala':'Hab.'} ${p.habitacionAnterior||'—'}`},
-    {header:'Hospitalización anterior — Ingreso',render:p=>p.fechaIngresoAnterior||'—'},
-    {header:'Hospitalización anterior — Egreso',render:p=>p.fechaEgresoAnterior||'—'}
-  ]}
+    {header:'Días desde el egreso anterior',render:p=>p.diasEntre!==null&&p.diasEntre!==undefined?p.diasEntre:'—'}
+  ],rowClick:(p,i)=>`verDetalleReingreso(${i})`}
 };
 function verDetalleIndicador(tipo){
   const cfg=DETALLE_INDICADOR_CFG[tipo];
   if(!cfg) return;
   const lista=concentradoDetalleData[tipo]||[];
+  const extraCol=!!cfg.rowClick;
   const filasHTML=lista.length
-    ? lista.map(function(p){
-        return '<tr>'+cfg.cols.map(function(c,i){ return `<td${i===0?' style="font-weight:600"':''}>${c.render(p)}</td>`; }).join('')+'</tr>';
+    ? lista.map(function(p,i){
+        const click=cfg.rowClick?cfg.rowClick(p,i):null;
+        return `<tr${click?` style="cursor:pointer" onclick="${click}"`:''}>`+cfg.cols.map(function(c,ci){ return `<td${ci===0?' style="font-weight:600"':''}>${c.render(p)}</td>`; }).join('')+(extraCol?'<td style="color:var(--gris4);text-align:center">🔍</td>':'')+'</tr>';
       }).join('')
-    : `<tr><td colspan="${cfg.cols.length}" style="text-align:center;color:var(--gris4);padding:16px">Sin registros este mes</td></tr>`;
+    : `<tr><td colspan="${cfg.cols.length+(extraCol?1:0)}" style="text-align:center;color:var(--gris4);padding:16px">Sin registros este mes</td></tr>`;
   document.getElementById('modalPacContent').innerHTML=`<div class="modal-title">${cfg.titulo} — pacientes del mes<button class="modal-close" onclick="closeModal('modalPac')">×</button></div>
 <div style="font-size:12px;color:var(--gris5);margin-bottom:10px">${lista.length} registro${lista.length!==1?'s':''} en el mes consultado en el Concentrado.${cfg.nota?' '+cfg.nota:''}</div>
 <div class="card" style="margin-bottom:0"><div class="pac-table-wrap"><table>
-  <thead><tr>${cfg.cols.map(function(c){ return `<th>${c.header}</th>`; }).join('')}</tr></thead>
+  <thead><tr>${cfg.cols.map(function(c){ return `<th>${c.header}</th>`; }).join('')}${extraCol?'<th></th>':''}</tr></thead>
   <tbody>${filasHTML}</tbody>
 </table></div></div>
 <div class="form-actions"><button class="btn btn-ghost" onclick="closeModal('modalPac')">Cerrar</button></div>`;
+  document.getElementById('modalPac').classList.add('open');
+}
+
+// Vista de comparación de un reingreso: en vez de estirar la tabla con más
+// columnas (obligando a scrollear al lado), se hace clic en el renglón del
+// paciente y se abre esta vista con los datos de la hospitalización
+// anterior y la del reingreso uno debajo del otro, incluyendo diagnóstico y
+// procedimiento de cada una para poder comparar el motivo.
+function verDetalleReingreso(idx){
+  const p=(concentradoDetalleData.reingresos||[])[idx];
+  if(!p) return;
+  const SIN=`<span style="color:var(--gris4)">Sin capturar</span>`;
+  function bloque(titulo,color,seccion,hab,fIng,fEgr,diag,proc,fProc){
+    return `<div class="card" style="margin-bottom:10px;border-left:3px solid ${color}">
+      <div style="font-weight:700;color:${color};margin-bottom:8px">${titulo}</div>
+      <div class="exp-field"><span class="exp-lbl">${seccion==='uci'?'Sala':'Hab.'}</span><span class="exp-val">${hab||'—'}</span></div>
+      <div class="exp-field"><span class="exp-lbl">Ingreso</span><span class="exp-val">${fIng||'—'}</span></div>
+      <div class="exp-field"><span class="exp-lbl">Egreso</span><span class="exp-val">${fEgr||'<span style="color:var(--verde);font-weight:600">Activo</span>'}</span></div>
+      <div class="exp-field"><span class="exp-lbl">Diagnóstico</span><span class="exp-val">${diag||SIN}</span></div>
+      <div class="exp-field"><span class="exp-lbl">Procedimiento</span><span class="exp-val">${proc?proc+(fProc?' · '+fProc:''):SIN}</span></div>
+    </div>`;
+  }
+  document.getElementById('modalPacContent').innerHTML=`<div class="modal-title">🟣 ${p.nombre||'Paciente'}<button class="modal-close" onclick="closeModal('modalPac')">×</button></div>
+<div style="font-size:12px;color:var(--gris5);margin-bottom:10px">Reingresó${p.diasEntre!==null&&p.diasEntre!==undefined?' '+p.diasEntre+' día'+(p.diasEntre!==1?'s':''):''} después del egreso anterior. Compara el diagnóstico y procedimiento de ambas hospitalizaciones para revisar el motivo del reingreso.</div>
+${bloque('Hospitalización anterior','var(--gris5)',p.seccionAnterior,p.habitacionAnterior,p.fechaIngresoAnterior,p.fechaEgresoAnterior,p.diagnosticoAnterior,p.procedimientoAnterior,p.fechaProcedimientoAnterior)}
+${bloque('Reingreso actual','var(--morado)',p.seccion,p.habitacion,p.fecha,p.fechaEgreso,p.diagnostico,p.procedimiento,p.fechaProcedimiento)}
+<div class="form-actions"><button class="btn btn-ghost" onclick="verDetalleIndicador('reingresos')">← Volver al listado</button><button class="btn btn-ghost" onclick="closeModal('modalPac')">Cerrar</button></div>`;
   document.getElementById('modalPac').classList.add('open');
 }
 
