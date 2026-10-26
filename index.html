@@ -1937,8 +1937,8 @@ function renderConcentrado(){
   const dispH=dispositivos(hosp), dispU=dispositivos(uci);
   const nTransf=dispH.transfusion+dispU.transfusion;
 
-  const dietaCount={}, medCount={}, aislaCount={};
-  todos.forEach(r=>{ if(r.dieta) dietaCount[r.dieta]=(dietaCount[r.dieta]||0)+1; [r.med1,r.med2,r.med3].filter(Boolean).forEach(m=>{ medCount[m]=(medCount[m]||0)+1; }); if(r.aislamiento) aislaCount[r.aislamiento]=(aislaCount[r.aislamiento]||0)+1; });
+  const medCount={}, aislaCount={};
+  todos.forEach(r=>{ [r.med1,r.med2,r.med3].filter(Boolean).forEach(m=>{ medCount[m]=(medCount[m]||0)+1; }); if(r.aislamiento) aislaCount[r.aislamiento]=(aislaCount[r.aislamiento]||0)+1; });
   const glasgowGrupos={'15 (Normal)':0,'13-14 (Leve)':0,'9-12 (Moderado)':0,'≤8 (Grave)':0};
   todos.forEach(r=>{ const g=parseInt(r.glasgow)||0; if(g===15) glasgowGrupos['15 (Normal)']++; else if(g>=13) glasgowGrupos['13-14 (Leve)']++; else if(g>=9) glasgowGrupos['9-12 (Moderado)']++; else if(g>0) glasgowGrupos['≤8 (Grave)']++; });
 
@@ -2173,12 +2173,8 @@ function renderConcentrado(){
         ${[['Sonda Foley',dispU.foley,'var(--az)'],['SNG',dispU.sng,'var(--verde)'],['Drenajes',dispU.dren,'var(--naranja)'],['Alto flujo',dispU.altoF,'var(--cyan)'],['Acceso IV 2',dispU.iv2,'var(--morado)'],['VM',dispU.vm,'var(--rojo)'],['Transfusión',dispU.transfusion,'var(--morado2)']].map(([lbl,n,col])=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--gris1)"><span style="font-size:12px;color:var(--gris6)">${lbl}</span><div style="display:flex;align-items:center;gap:6px"><div style="height:4px;width:${uci.length>0?Math.round(n/uci.length*80):0}px;max-width:80px;background:${col};border-radius:2px"></div><span style="font-size:12px;font-weight:600;color:${col}">${n}</span><span style="font-size:10px;color:var(--gris4)">${uci.length>0?Math.round(n/uci.length*100):0}%</span></div></div>`).join('')}
       </div>
     </div>
-    <div class="ind-grid-3" style="margin-bottom:12px">
-      <div class="group-title">🍽 Dietas · 💊 Medicamentos AR · 🏥 Aislamientos · 🧠 Glasgow</div>
-      <div class="ind-card">
-        <div class="ind-hdr"><div class="ind-dot" style="background:var(--verde)"></div><span class="ind-ttl">Dietas prescritas</span></div>
-        ${Object.entries(dietaCount).sort((a,b)=>b[1]-a[1]).map(([d,n])=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--gris1)"><span style="font-size:12px;color:var(--gris6)">${d}</span><span style="font-size:12px;font-weight:600;color:var(--az2)">${n}</span></div>`).join('')||'<div style="font-size:12px;color:var(--gris4);padding:8px 0">Sin registros</div>'}
-      </div>
+    <div class="ind-grid-2" style="margin-bottom:12px">
+      <div class="group-title">💊 Medicamentos AR · 🏥 Aislamientos · 🧠 Glasgow</div>
       <div class="ind-card">
         <div class="ind-hdr"><div class="ind-dot" style="background:var(--naranja)"></div><span class="ind-ttl">Medicamentos de alto riesgo</span></div>
         ${Object.entries(medCount).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([m,n])=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--gris1)"><span style="font-size:12px;color:var(--gris6)">${m}</span><span style="font-size:12px;font-weight:600;color:var(--naranja)">${n}</span></div>`).join('')||'<div style="font-size:12px;color:var(--gris4);padding:8px 0">Sin registros</div>'}
