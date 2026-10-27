@@ -1792,8 +1792,48 @@ function renderConcentrado(){
     return esFecha(f)&&f>=inicioMes&&f<=finMes;
   }
 
-  const caidasHArr=hosp.filter(r=>r['caídaEvento']==='Sí'&&ocurrioEnMes(r['caídaFecha'],r));
-  const caidasUArr=uci.filter(r=>r['caídaEvento']==='Sí'&&ocurrioEnMes(r['caídaFecha'],r));
+  // Cuando un paciente se traslada internamente (Hosp<->UCI/UCIM), el
+  // registro nuevo que se crea en la sección destino copia TODOS los
+  // campos del registro de origen (confirmarTraslado hace
+  // Object.assign({},origen,{...})) — incluidos los de un evento puntual
+  // ya marcado (caída/LPP/infección), para no perder el dato en el
+  // panel del paciente. Pero eso deja el MISMO evento físico (pasó una
+  // sola vez) capturado en DOS registros, uno por cada sección, y sin
+  // deduplicar el Concentrado lo cuenta dos veces (una en Hosp, otra en
+  // UCI) — igual que ya pasaba con pacDia/Reingresos/NAS por el mismo
+  // traslado (caso real reportado: Sr. Ramiro Díaz Nava, su ITUAC
+  // aparecía tanto en Hosp como en UCI). Se agrupa por expediente + la
+  // fecha propia del evento (+ tipo, para infecciones, por si el mismo
+  // paciente tuviera dos infecciones de tipos distintos en el mes) y se
+  // conserva solo el registro con el id más chico — es el que existía
+  // primero, donde realmente se capturó el evento (el traslado solo
+  // copia hacia adelante, nunca hacia atrás). Si falta expediente o
+  // fecha propia no se puede agrupar con certeza y el registro se
+  // conserva tal cual, como antes.
+  function dedupeEventoTraslado(arrHosp,arrUci,fechaCampo,tipoCampo){
+    const ganador={};
+    [...arrHosp,...arrUci].forEach(r=>{
+      const fp=r[fechaCampo];
+      if(!r.expediente||!fp||!esFecha(fp)) return;
+      const k=r.expediente+'|'+fp+(tipoCampo?'|'+(r[tipoCampo]||''):'');
+      if(!ganador[k]||r.id<ganador[k].id) ganador[k]=r;
+    });
+    function filtrar(arr){
+      return arr.filter(r=>{
+        const fp=r[fechaCampo];
+        if(!r.expediente||!fp||!esFecha(fp)) return true;
+        const k=r.expediente+'|'+fp+(tipoCampo?'|'+(r[tipoCampo]||''):'');
+        return ganador[k]&&ganador[k].id===r.id;
+      });
+    }
+    return [filtrar(arrHosp),filtrar(arrUci)];
+  }
+
+  let [caidasHArr,caidasUArr]=dedupeEventoTraslado(
+    hosp.filter(r=>r['caídaEvento']==='Sí'&&ocurrioEnMes(r['caídaFecha'],r)),
+    uci.filter(r=>r['caídaEvento']==='Sí'&&ocurrioEnMes(r['caídaFecha'],r)),
+    'caídaFecha'
+  );
   const nCaidasH=caidasHArr.length, nCaidasU=caidasUArr.length, nCaidas=nCaidasH+nCaidasU;
   const tasaCaidas=pdTodos>0?Math.round(nCaidas/pdTodos*1000*100)/100:null;
   const caidasDetalle=[...caidasHArr.map(r=>({seccion:'hosp',habitacion:r.habitacion,nombre:r.nombre,fecha:fechaEvento(r['caídaFecha'],r)})),
@@ -1806,8 +1846,11 @@ function renderConcentrado(){
   // detalle (para no perder el dato) pero se excluyen del numerador de
   // la Tasa de LPP, que debe medir solo lesiones adquiridas en el
   // hospital, no las que el paciente ya traía al ingresar.
-  const lppHArr=hosp.filter(r=>r.lppEvento==='Sí'&&ocurrioEnMes(r.lppFecha,r));
-  const lppUArr=uci.filter(r=>r.lppEvento==='Sí'&&ocurrioEnMes(r.lppFecha,r));
+  let [lppHArr,lppUArr]=dedupeEventoTraslado(
+    hosp.filter(r=>r.lppEvento==='Sí'&&ocurrioEnMes(r.lppFecha,r)),
+    uci.filter(r=>r.lppEvento==='Sí'&&ocurrioEnMes(r.lppFecha,r)),
+    'lppFecha'
+  );
   const esAdquiridaHospital=r=>r.lppDesdeCasa!=='Sí';
   const nLPP=lppHArr.filter(esAdquiridaHospital).length+lppUArr.filter(esAdquiridaHospital).length;
   const tasaLPP=todos.length>0?Math.round(nLPP/todos.length*1000)/10:null;
@@ -1815,8 +1858,11 @@ function renderConcentrado(){
                      ...lppUArr.map(r=>({seccion:'uci',habitacion:r.habitacion,nombre:r.nombre,fecha:fechaEvento(r.lppFecha,r),origen:r.lppDesdeCasa==='Sí'?'Desde casa':'Hospitalaria'}))]
                      .sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||''));
 
-  const infHosp=hosp.filter(r=>r.infeccionEvento==='Sí'&&ocurrioEnMes(r.infeccionFecha,r));
-  const infUCI=uci.filter(r=>r.infeccionEvento==='Sí'&&ocurrioEnMes(r.infeccionFecha,r));
+  let [infHosp,infUCI]=dedupeEventoTraslado(
+    hosp.filter(r=>r.infeccionEvento==='Sí'&&ocurrioEnMes(r.infeccionFecha,r)),
+    uci.filter(r=>r.infeccionEvento==='Sí'&&ocurrioEnMes(r.infeccionFecha,r)),
+    'infeccionFecha','infeccionTipo'
+  );
   const infTodos=[...infHosp,...infUCI];
   const infCount={};
   infTodos.forEach(r=>{ if(r.infeccionTipo){ infCount[r.infeccionTipo]=(infCount[r.infeccionTipo]||0)+1; } });
