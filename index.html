@@ -1875,22 +1875,33 @@ function renderConcentrado(){
   // ══════════════════════════════════════════════════════════
   // PACIENTES AMBULATORIOS — Hospitalización
   // ══════════════════════════════════════════════════════════
-  // Ingreso y egreso el MISMO día calendario (fechaIngreso===fechaEgreso),
-  // igual que se distinguen los de Oncológica (origenOncologica) pero
-  // aquí la clasificación no es un campo capturado sino derivada de las
-  // propias fechas. Se excluyen los traslados internos a UCI/UCIM
-  // (esTrasladoInterno) y las defunciones del mismo día: ninguno de los
-  // dos es un caso "ambulatorio" aunque coincida la fecha.
-  const ambulatorioHosp=hosp.filter(r=>esFecha(r.fechaIngreso)&&esFecha(r.fechaEgreso)&&r.fechaIngreso===r.fechaEgreso&&!esTrasladoInterno(r)&&r.destinoEgreso!=='Defunción');
-  function horasEstanciaAmb(r){
-    if(!r.horaIngreso||!r.horaEgreso) return null;
-    const mi=String(r.horaIngreso).match(/^(\d{1,2}):(\d{2})$/), me=String(r.horaEgreso).match(/^(\d{1,2}):(\d{2})$/);
+  // Criterio: estancia hospitalaria TOTAL de máximo 12 horas, contando
+  // fecha+hora completas de ingreso y egreso (no solo "mismo día" — un
+  // paciente que ingresa 22:00 y egresa 05:00 del día siguiente también
+  // cuenta, son 7 h; uno que ingresa 00:10 y egresa 23:50 del MISMO día
+  // ya NO cuenta, son casi 24 h). Se excluyen los traslados internos a
+  // UCI/UCIM (esTrasladoInterno) y las defunciones: ninguno de los dos
+  // es un caso "ambulatorio" aunque la estancia haya durado poco.
+  // Requiere horaIngreso Y horaEgreso capturadas (HH:MM) — sin ambas no
+  // hay forma de confirmar que la estancia fue de 12 h o menos, así que
+  // esos pacientes no se cuentan aquí (a diferencia de antes, cuando
+  // bastaba con que coincidiera la fecha).
+  // Minutos exactos (sin redondear) -- el límite de 12h se evalúa sobre
+  // este valor, nunca sobre las horas ya redondeadas a 1 decimal, para
+  // que p. ej. 12h01 (721 min) no se "cuele" como 12.0h por redondeo.
+  function minutosEstanciaAmb(r){
+    if(!esFecha(r.fechaIngreso)||!esFecha(r.fechaEgreso)) return null;
+    const mi=String(r.horaIngreso||'').match(/^(\d{1,2}):(\d{2})$/), me=String(r.horaEgreso||'').match(/^(\d{1,2}):(\d{2})$/);
     if(!mi||!me) return null;
-    let mins=(parseInt(me[1])*60+parseInt(me[2]))-(parseInt(mi[1])*60+parseInt(mi[2]));
-    if(mins<0) mins+=24*60; // por si el egreso quedó capturado ya pasada la medianoche del reloj de 24h
-    return Math.round(mins/60*10)/10;
+    const diasDiff=diasEntreFechas(r.fechaIngreso,r.fechaEgreso);
+    if(diasDiff===null) return null;
+    const minsIni=parseInt(mi[1])*60+parseInt(mi[2]), minsFin=parseInt(me[1])*60+parseInt(me[2]);
+    const mins=diasDiff*24*60+(minsFin-minsIni);
+    return mins>=0?mins:null;
   }
-  const horasAmbValidas=ambulatorioHosp.map(horasEstanciaAmb).filter(h=>h!==null);
+  function horasEstanciaAmb(r){ const m=minutosEstanciaAmb(r); return m!==null?Math.round(m/60*10)/10:null; }
+  const ambulatorioHosp=hosp.filter(r=>!esTrasladoInterno(r)&&r.destinoEgreso!=='Defunción'&&minutosEstanciaAmb(r)!==null&&minutosEstanciaAmb(r)<=12*60);
+  const horasAmbValidas=ambulatorioHosp.map(horasEstanciaAmb);
   const avgHorasAmb=horasAmbValidas.length?Math.round(horasAmbValidas.reduce((s,h)=>s+h,0)/horasAmbValidas.length*10)/10:null;
 
   const defMes=DB.def.filter(r=>r.fecha>=inicioMes&&r.fecha<=finMes);
@@ -2187,11 +2198,11 @@ function renderConcentrado(){
           <div style="flex:1;text-align:center;background:var(--az3);border-radius:8px;padding:10px"><div style="font-size:10px;font-weight:700;color:var(--az2)">PACIENTES</div><div style="font-size:28px;font-weight:700;color:var(--az2)">${ambulatorioHosp.length}</div></div>
           <div style="flex:1;text-align:center;background:var(--az3);border-radius:8px;padding:10px"><div style="font-size:10px;font-weight:700;color:var(--az2)">HORAS PROMEDIO</div><div style="font-size:28px;font-weight:700;color:var(--az2)">${avgHorasAmb!==null?avgHorasAmb:'—'}</div></div>
         </div>
-        <div style="font-size:10px;color:var(--gris4)">Ingreso y egreso de Hospitalización registrados el mismo día, sin traslado interno a UCI/UCIM ni defunción. Tasa: ${hosp.length>0?Math.round(ambulatorioHosp.length/hosp.length*1000)/10:0}% de los pacientes de Hospitalización este mes</div>
+        <div style="font-size:10px;color:var(--gris4)">Estancia hospitalaria total de máximo 12 horas (fecha+hora de ingreso y egreso), sin traslado interno a UCI/UCIM ni defunción. Requiere hora de ingreso y egreso capturadas. Tasa: ${hosp.length>0?Math.round(ambulatorioHosp.length/hosp.length*1000)/10:0}% de los pacientes de Hospitalización este mes</div>
       </div>
       <div class="ind-card">
         <div class="ind-hdr"><div class="ind-dot" style="background:var(--cyan)"></div><span class="ind-ttl">Horas de estancia por paciente</span></div>
-        ${ambulatorioHosp.length>0?`<div style="margin-top:4px">${ambulatorioHosp.slice().sort((a,b)=>(a.fechaIngreso||'').localeCompare(b.fechaIngreso||'')).map(r=>{const h=horasEstanciaAmb(r);return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--gris1)"><span style="font-size:12px;color:var(--gris6)">${r.nombre||'—'}</span><span style="background:var(--az3);color:var(--az2);padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700">${h!==null?h+' h':'Sin hora registrada'}</span></div>`;}).join('')}</div>`:'<div style="font-size:12px;color:var(--gris4);padding:8px 0">Sin pacientes ambulatorios registrados este mes</div>'}
+        ${ambulatorioHosp.length>0?`<div style="margin-top:4px">${ambulatorioHosp.slice().sort((a,b)=>horasEstanciaAmb(a)-horasEstanciaAmb(b)).map(r=>{const h=horasEstanciaAmb(r);return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--gris1)"><span style="font-size:12px;color:var(--gris6)">${r.nombre||'—'}</span><span style="background:var(--az3);color:var(--az2);padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700">${h} h</span></div>`;}).join('')}</div>`:'<div style="font-size:12px;color:var(--gris4);padding:8px 0">Sin pacientes ambulatorios registrados este mes (≤12 h, con hora de ingreso y egreso capturadas)</div>'}
       </div>
     </div>
     <div style="margin-bottom:12px">
