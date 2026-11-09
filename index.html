@@ -1923,6 +1923,38 @@ function renderConcentrado(){
   // Si el texto no tiene ninguna de esas marcas no se clasifica en
   // ninguno de los dos (no se inventa un tipo).
   function diasEnRango(ini,fin){ const d=diasEntreFechas(ini,fin); return d!==null?Math.max(0,d+1):0; }
+  // Heurística de clasificación por texto libre (CVP/CVC), compartida
+  // con migrarTipoCateterDesdeTexto() en Code.gs — mantener las dos en
+  // el mismo orden si se vuelve a ajustar. Devuelve null cuando el
+  // texto no es clasificable (otro tipo de dispositivo, ambiguo, o una
+  // nota/fecha capturada por error en el campo).
+  function clasificarTextoCateter(texto){
+    const t=String(texto||'').trim().toUpperCase();
+    if(!t) return null;
+    // Dispositivos que NO son catéter venoso — nunca clasificar, aunque
+    // el texto también traiga un número, "G" o "FR".
+    if(/EPIDURAL|PERIFIX|ARTERIAL|MAHURKAR|PUERTO|COBRA/.test(t)) return null;
+    // Alta confianza: CVC/PICC o CVP/CPC explícitos.
+    if(t.includes('CVC')||t.includes('PICC')) return 'CVC';
+    if(t.includes('CVP')||t.includes('CPC')) return 'CVP';
+    // Sitio de inserción central (subclavio/yugular/femoral real — el
+    // Cobra femoral ya se excluyó arriba).
+    if(/SUBCLAVIO|YUGULAR|FEMORAL/.test(t)) return 'CVC';
+    // Typos conocidos de "CPC" (letras transpuestas) — periférico.
+    if(/\bCCP\b|\bCPP\b/.test(t)) return 'CVP';
+    // "AVP" (Acceso Venoso Periférico) — periférico.
+    if(/\bAVP\b/.test(t)) return 'CVP';
+    // Calibre tipo gauge ("18G", "24G IZQUIERDO") — los centrales no se
+    // miden en gauge, así que esto siempre es periférico.
+    if(/\b\d{1,2}\s*G\b/.test(t)) return 'CVP';
+    // Solo un número, con o sin "#" y con o sin lateralidad conocida
+    // ("#18", "# 20", "18, MSD", "#18 DERECHO") — mismo patrón que
+    // "CPC #18", sin el prefijo. "Fr" se deja fuera a propósito: es
+    // ambiguo con Mahurkar.
+    const limpio=t.replace(/^#\s*/,'').replace(/,/g,' ').replace(/\b(IZQUIERDO|DERECHO|IZQ|DER|MSD|MSI|MID|MII)\b/g,'').trim();
+    if(/^\d{1,2}$/.test(limpio)) return 'CVP';
+    return null;
+  }
   // Prioriza el campo de tipo explícito (menú CVP/CVC/PICC capturado en
   // el formulario) sobre el texto libre — más confiable porque no
   // depende de cómo cada quien lo redacte. Si el registro es de antes
@@ -1932,11 +1964,7 @@ function renderConcentrado(){
     const explicito=r[campoTipo];
     if(explicito==='CVP') return 'CVP';
     if(explicito==='CVC'||explicito==='PICC') return 'CVC';
-    const t=String(r[campoTexto]||'').toUpperCase();
-    if(!t) return null;
-    if(t.includes('CVC')||t.includes('PICC')) return 'CVC';
-    if(t.includes('CVP')||t.includes('CPC')) return 'CVP';
-    return null;
+    return clasificarTextoCateter(r[campoTexto]);
   }
   function detalleDispositivo(arr,seccion,campoFecha,campoRetiro){
     const filas=[];
