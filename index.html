@@ -358,6 +358,40 @@ style="width:100%;padding:12px;font-size:20px;text-align:center;border:2px solid
 
 <script>
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbyBGG3KA1X5YuFCM2yMg7U079_iaBn9C62LyQxSyj0WUrlbJFM8X-Woh1WX0hK1BI3N/exec';
+
+// Acceso rápido al sistema real de Eventos Adversos (folio, análisis de
+// causa raíz, algoritmo de Naranjo, etc.). Las casillas de Caída/LPP/
+// Infección de este Censo no se modifican; este botón solo abre el
+// formulario de Eventos Adversos en una pestaña nueva, con los datos del
+// paciente ya precargados.
+const URL_EVENTOS_ADVERSOS = 'https://cmgasupervisionenfermeria-web.github.io/NOTIFICACION-DE-EVENTOS-ADVERSOS/';
+function abrirReporteEventoAdverso(datos){
+  datos = datos || {};
+  const params = new URLSearchParams();
+  if(datos.origen)   params.set('origen', datos.origen);
+  if(datos.area)     params.set('area', datos.area);
+  if(datos.paciente) params.set('paciente', datos.paciente);
+  if(datos.fecha)    params.set('fecha', datos.fecha);
+  if(datos.turno)    params.set('turno', datos.turno);
+  if(datos.medico)   params.set('medico', datos.medico);
+  if(datos.nota)     params.set('nota', datos.nota);
+  const qs = params.toString();
+  window.open(URL_EVENTOS_ADVERSOS + (qs ? ('?' + qs) : ''), '_blank');
+}
+function abrirReporteEventoAdversoPaciente(id, seccion){
+  const r = (DB[seccion] || []).find(x => x.id === id) || {};
+  let area = 'Hospitalización';
+  if(seccion === 'uci'){
+    area = String(r.habitacion || '').toUpperCase().indexOf('UCIM') === 0 ? 'UCIM' : 'UCI';
+  }
+  abrirReporteEventoAdverso({
+    origen: 'hospitalario',
+    area: area,
+    paciente: (r.nombre || '') + (r.expediente ? (' - Exp. ' + r.expediente) : ''),
+    fecha: dk(new Date()),
+    medico: r.medico || ''
+  });
+}
 // Token de acceso al backend — debe coincidir EXACTAMENTE con el que generaste
 // al ejecutar configurarToken() en el Apps Script. Sin este token, el script
 // rechaza cualquier lectura o escritura (ver doGet en Code.gs).
@@ -670,6 +704,7 @@ function panelDetalle(r, seccion){
       <button class="btn btn-ghost btn-sm" onclick="requirePin(()=>abrirModalEgreso(${r.id},'${seccion}'))">🚪 Egreso</button>
       <button class="btn btn-ghost btn-sm" style="color:var(--gris7)" onclick="requirePin(()=>registrarDefuncion(${r.id},'${seccion}'))">⚰ Defunción</button>
       <button class="btn btn-ghost btn-sm" onclick="requirePin(()=>abrirModalPaciente(${r.id},'${seccion}'))">✏ Editar paciente</button>
+      <button class="btn btn-sm" style="background:#991B1B;color:#fff" onclick="abrirReporteEventoAdversoPaciente(${r.id},'${seccion}')">🚨 Reportar evento adverso</button>
     </div>
   </div>`;
 }
