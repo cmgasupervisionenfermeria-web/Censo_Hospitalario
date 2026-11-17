@@ -348,10 +348,10 @@ style="width:100%;padding:12px;font-size:20px;text-align:center;border:2px solid
 </div>
 </div>
 
-<div class="modal-bg" id="modalPac" onclick="if(event.target===this)closeModal('modalPac')">
+<div class="modal-bg" id="modalPac">
 <div class="modal"><div class="modal-handle"></div><div id="modalPacContent"></div></div>
 </div>
-<div class="modal-bg" id="modalDef" onclick="if(event.target===this)closeModal('modalDef')">
+<div class="modal-bg" id="modalDef">
 <div class="modal"><div class="modal-handle"></div><div id="modalDefContent"></div></div>
 </div>
 <div class="toast" id="toast"></div>
@@ -482,7 +482,7 @@ async function apiCall(payload){ guardarLocal(); if(!GAS_CONFIGURADO) return{ok:
 // Normaliza fechas/horas que Google Sheets pudo mandar en formato ISO
 // completo (con 'T') en vez del formato simple que usa el front-end.
 function normalizarRegistro(rec){
-  const camposFecha=['fecha','fechaIngreso','fechaNac','fechaProcedimiento','fechaEgreso','accesoIV1Fecha','accesoIV1Retiro','accesoIV2Fecha','accesoIV2Retiro','sondaFoleyFecha','sondaFoleyRetiro','sngFecha','sngRetiro','drenaje1Fecha','drenaje1Retiro','drenaje2Fecha','drenaje2Retiro','soporteRespFecha','soporteRespRetiro','ventMecFecha','ventMecRetiro','caídaFecha','lppFecha','infeccionFecha','fechaDefuncion','fechaIngresoTanatorio','fechaBloqueo','fechaDesbloqueo'];
+  const camposFecha=['fecha','fechaIngreso','fechaNac','fechaProcedimiento','fechaEgreso','accesoIV1Fecha','accesoIV1Retiro','accesoIV2Fecha','accesoIV2Retiro','accesoIV3Fecha','accesoIV3Retiro','sondaFoleyFecha','sondaFoleyRetiro','sngFecha','sngRetiro','drenaje1Fecha','drenaje1Retiro','drenaje2Fecha','drenaje2Retiro','soporteRespFecha','soporteRespRetiro','ventMecFecha','ventMecRetiro','caídaFecha','lppFecha','infeccionFecha','fechaDefuncion','fechaIngresoTanatorio','fechaBloqueo','fechaDesbloqueo'];
   const camposHora=['horaIngreso','horaEgreso','horaDefuncion','horaIngresoTanatorio','horaEgresoTanatorio','horaBloqueo','horaDesbloqueo'];
   camposFecha.forEach(c=>{ if(rec[c]&&typeof rec[c]==='string'&&rec[c].includes('T')){ rec[c]=rec[c].split('T')[0]; } });
   camposHora.forEach(c=>{ if(rec[c]&&typeof rec[c]==='string'&&rec[c].includes('T')){ const d=new Date(rec[c]); rec[c]=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); } });
@@ -584,6 +584,7 @@ function esFecha(v){ return typeof v==='string' && /^\d{4}-\d{2}-\d{2}$/.test(v)
 const DISPOSITIVOS_FECHA_RETIRO=[
   ['accesoIV1Fecha','accesoIV1Retiro'],
   ['accesoIV2Fecha','accesoIV2Retiro'],
+  ['accesoIV3Fecha','accesoIV3Retiro'],
   ['sondaFoleyFecha','sondaFoleyRetiro'],
   ['sngFecha','sngRetiro'],
   ['drenaje1Fecha','drenaje1Retiro'],
@@ -686,6 +687,7 @@ function panelDetalle(r, seccion){
         <div class="exp-section-title">🔌 Dispositivos invasivos</div>
         <div class="exp-field"><span class="exp-lbl">Acceso IV 1</span><span class="exp-val">${disp('IV 1'+(r.accesoIV1Tipo?' ['+r.accesoIV1Tipo+']':'')+' '+(r.accesoIV||''), r.accesoIV1Fecha, r.accesoIV1Retiro)}</span></div>
         <div class="exp-field"><span class="exp-lbl">Acceso IV 2</span><span class="exp-val">${disp('IV 2'+(r.accesoIV2Tipo?' ['+r.accesoIV2Tipo+']':'')+' '+(r.accesoIV2||''), r.accesoIV2Fecha, r.accesoIV2Retiro)}</span></div>
+        <div class="exp-field"><span class="exp-lbl">Acceso IV 3</span><span class="exp-val">${disp('IV 3'+(r.accesoIV3Tipo?' ['+r.accesoIV3Tipo+']':'')+' '+(r.accesoIV3||''), r.accesoIV3Fecha, r.accesoIV3Retiro)}</span></div>
         <div class="exp-field"><span class="exp-lbl">Sonda Foley</span><span class="exp-val">${r.sondaFoley==='Sí'?disp('Foley', r.sondaFoleyFecha, r.sondaFoleyRetiro):'—'}</span></div>
         <div class="exp-field"><span class="exp-lbl">SNG</span><span class="exp-val">${r.sng==='Sí'?disp('SNG', r.sngFecha, r.sngRetiro):'—'}</span></div>
         <div class="exp-field"><span class="exp-lbl">Drenaje 1</span><span class="exp-val">${disp('Drenaje '+(r.drenaje1||''), r.drenaje1Fecha, r.drenaje1Retiro)}</span></div>
@@ -758,7 +760,7 @@ function diasDispositivo(idIns, idRet, idResult){
   const fin=ret||new Date().toISOString().split('T')[0];
   const dias=Math.max(0,Math.round((new Date(fin+'T12:00')-new Date(ins+'T12:00'))/86400000));
   el.textContent=dias+(dias===1?' día':' días');
-  const alertaIds={'p-iv1-dias':7,'p-iv2-dias':7,'p-foley-dias':14,'p-sng-dias':28,'p-dr1-dias':30,'p-dr2-dias':30,'p-resp-dias':0,'p-vm-dias':0};
+  const alertaIds={'p-iv1-dias':7,'p-iv2-dias':7,'p-iv3-dias':7,'p-foley-dias':14,'p-sng-dias':28,'p-dr1-dias':30,'p-dr2-dias':30,'p-resp-dias':0,'p-vm-dias':0};
   const limite=alertaIds[idResult];
   if(limite&&dias>=limite){ el.style.color='var(--rojo)'; el.style.fontWeight='700'; }
   else if(dias>0){ el.style.color='var(--verde)'; el.style.fontWeight='600'; }
@@ -1101,6 +1103,13 @@ ${!isUCI?`<div class="form-group"><label>¿Proviene de Oncológica?</label><sele
   <div class="form-group"><label>Fecha retiro</label><input type="date" id="p-iv2ret" value="${rec.accesoIV2Retiro||''}" onchange="diasDispositivo('p-iv2f','p-iv2ret','p-iv2-dias')"></div>
   <div class="form-group"><label>Días permanencia</label><div id="p-iv2-dias" style="padding:7px 10px;border:1px solid var(--gris2);border-radius:7px;font-size:13px;background:var(--gris0);min-height:35px">—</div></div>
 </div>
+<div style="display:grid;grid-template-columns:1fr 1.5fr 1fr 1fr 1fr;gap:8px;margin-bottom:10px">
+  <div class="form-group"><label>Acceso IV 3 — Tipo</label><select id="p-iv3-tipo"><option value="">— Sin clasificar —</option><option value="CVP"${rec.accesoIV3Tipo==='CVP'?' selected':''}>CVP (periférico)</option><option value="CVC"${rec.accesoIV3Tipo==='CVC'?' selected':''}>CVC (central)</option><option value="PICC"${rec.accesoIV3Tipo==='PICC'?' selected':''}>PICC</option></select></div>
+  <div class="form-group"><label>Detalle (sitio, marca…)</label><input id="p-iv3" value="${rec.accesoIV3||''}" placeholder="Ej. yugular derecha, subclavia…"></div>
+  <div class="form-group"><label>Fecha instalación</label><input type="date" id="p-iv3f" value="${rec.accesoIV3Fecha||''}" onchange="diasDispositivo('p-iv3f','p-iv3ret','p-iv3-dias')"></div>
+  <div class="form-group"><label>Fecha retiro</label><input type="date" id="p-iv3ret" value="${rec.accesoIV3Retiro||''}" onchange="diasDispositivo('p-iv3f','p-iv3ret','p-iv3-dias')"></div>
+  <div class="form-group"><label>Días permanencia</label><div id="p-iv3-dias" style="padding:7px 10px;border:1px solid var(--gris2);border-radius:7px;font-size:13px;background:var(--gris0);min-height:35px">—</div></div>
+</div>
 <div class="section-lbl">Dispositivos invasivos — sondas y drenajes</div>
 <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:10px">
   <div class="form-group"><label>Sonda Foley</label><select id="p-foley"><option value="">—</option><option${rec.sondaFoley==='Sí'?' selected':''}>Sí</option><option${rec.sondaFoley==='No'?' selected':''}>No</option></select></div>
@@ -1185,7 +1194,7 @@ ${!isUCI?`<div class="form-group"><label>¿Proviene de Oncológica?</label><sele
 <div class="form-actions">${id?`<button class="btn btn-ghost btn-sm" onclick="abrirModalTraslado(${id},'${seccion}')">🔀 Trasladar</button><button class="btn btn-ghost btn-sm" onclick="abrirModalEgreso(${id},'${seccion}')">🚪 Egreso</button><button class="btn btn-ghost btn-sm" onclick="registrarDefuncion(${id},'${seccion}')">⚰ Defunción</button><button class="btn btn-danger btn-sm" onclick="eliminar(${id},'${seccion}','modalPac')">🗑 Eliminar</button>`:''}<button class="btn btn-ghost" onclick="closeModal('modalPac')">Cancelar</button><button class="btn btn-success" onclick="guardarPaciente(${id||0},'${seccion}')">✓ Guardar</button></div>`;
   document.getElementById('modalPac').classList.add('open');
   setTimeout(()=>{
-    [['p-iv1f','p-iv1ret','p-iv1-dias'],['p-iv2f','p-iv2ret','p-iv2-dias'],
+    [['p-iv1f','p-iv1ret','p-iv1-dias'],['p-iv2f','p-iv2ret','p-iv2-dias'],['p-iv3f','p-iv3ret','p-iv3-dias'],
      ['p-foleyf','p-foleyret','p-foley-dias'],['p-sngf','p-sngret','p-sng-dias'],
      ['p-dr1f','p-dr1ret','p-dr1-dias'],['p-dr2f','p-dr2ret','p-dr2-dias'],
      ['p-respf','p-respret','p-resp-dias'],['p-ventmecf','p-vmret','p-vm-dias']
@@ -1387,6 +1396,10 @@ async function guardarPaciente(id,seccion){
     accesoIV2Tipo:document.getElementById('p-iv2-tipo').value,
     accesoIV2Fecha:document.getElementById('p-iv2f').value,
     accesoIV2Retiro:document.getElementById('p-iv2ret').value,
+    accesoIV3:document.getElementById('p-iv3').value.trim(),
+    accesoIV3Tipo:document.getElementById('p-iv3-tipo').value,
+    accesoIV3Fecha:document.getElementById('p-iv3f').value,
+    accesoIV3Retiro:document.getElementById('p-iv3ret').value,
     sondaFoley:document.getElementById('p-foley').value,
     sondaFoleyFecha:document.getElementById('p-foleyf').value,
     sondaFoleyRetiro:document.getElementById('p-foleyret').value,
@@ -1461,7 +1474,7 @@ async function guardarPaciente(id,seccion){
 }
 function isUCISeccion(s){ return s==='uci'; }
 
-function abrirModalDefuncion(id){ const rec=id?DB.def.find(r=>r.id===id)||{}:{}; document.getElementById('modalDefContent').innerHTML=`<div class="modal-title">${id?'Editar':'Registrar'} defunción<button class="modal-close" onclick="closeModal('modalDef')">×</button></div><div class="form-grid-3"><div class="form-group"><label>Servicio</label><select id="d-srv"><option value="">—</option>${['Hospitalización','UCI','UCIM'].map(s=>`<option${rec.servicio===s?' selected':''}>${s}</option>`).join('')}</select></div><div class="form-group"><label>Fecha ingreso</label><input type="date" id="d-fing" value="${rec.fechaIngreso||''}"></div><div class="form-group full"><label>Nombre del paciente</label><input id="d-nombre" value="${rec.nombre||''}" placeholder="Apellidos, Nombre"></div><div class="form-group"><label>N° Expediente</label><input id="d-exp" value="${rec.expediente||''}"></div><div class="form-group"><label>Sexo</label><select id="d-sexo"><option value="">—</option><option value="M"${rec.sexo==='M'?' selected':''}>Masculino</option><option value="F"${rec.sexo==='F'?' selected':''}>Femenino</option></select></div><div class="form-group"><label>Edad</label><input type="number" id="d-edad" value="${rec.edad||''}" min="0"></div><div class="form-group full"><label>Diagnóstico de ingreso</label><input id="d-diaging" value="${rec.diagIngreso||''}"></div><div class="form-group full"><label>Diagnóstico de defunción</label><input id="d-diagdef" value="${rec.diagDefuncion||''}"></div><div class="form-group"><label>Fecha de defunción</label><input type="date" id="d-fdef" value="${rec.fechaDefuncion||dk(cur)}"></div><div class="form-group"><label>Hora de defunción</label><input type="text" id="d-hdef" value="${rec.horaDefuncion||''}" placeholder="HH:MM" maxlength="5" style="font-family:'DM Mono',monospace" oninput="fmtHora(this)"></div><div class="form-group"><label>Médico tratante</label><input id="d-med" value="${rec.medico||''}"></div><div class="form-group"><label>Hora ingreso tanatorio</label><input type="text" id="d-htanin" value="${rec.horaIngresoTanatorio||''}" placeholder="HH:MM" maxlength="5" style="font-family:'DM Mono',monospace" oninput="fmtHora(this)"></div><div class="form-group"><label>Hora egreso tanatorio</label><input type="text" id="d-htaneg" value="${rec.horaEgresoTanatorio||''}" placeholder="HH:MM" maxlength="5" style="font-family:'DM Mono',monospace" oninput="fmtHora(this)"></div><div class="form-group"><label>Folio certificado de defunción</label><input id="d-folio" value="${rec.folioDefuncion||''}" placeholder="N° folio" style="font-family:'DM Mono',monospace"></div><div class="form-group full"><label>Observaciones</label><input id="d-obs" value="${rec.observaciones||''}"></div></div><div class="form-actions">${id?`<button class="btn btn-danger btn-sm" onclick="eliminar(${id},'def','modalDef')">🗑 Eliminar</button>`:''}<button class="btn btn-ghost" onclick="closeModal('modalDef')">Cancelar</button><button class="btn btn-success" onclick="guardarDefuncion(${id||0})">✓ Guardar</button></div>`; document.getElementById('modalDef').classList.add('open'); }
+function abrirModalDefuncion(id){ const rec=id?DB.def.find(r=>r.id===id)||{}:{}; document.getElementById('modalDefContent').innerHTML=`<div class="modal-title">${id?'Editar':'Registrar'} defunción<button class="modal-close" onclick="closeModal('modalDef')">×</button></div><div class="form-grid-3"><div class="form-group"><label>Servicio</label><select id="d-srv"><option value="">—</option>${['Hospitalización','UCI','UCIM','Urgencias'].map(s=>`<option${rec.servicio===s?' selected':''}>${s}</option>`).join('')}</select></div><div class="form-group"><label>Fecha ingreso</label><input type="date" id="d-fing" value="${rec.fechaIngreso||''}"></div><div class="form-group full"><label>Nombre del paciente</label><input id="d-nombre" value="${rec.nombre||''}" placeholder="Apellidos, Nombre"></div><div class="form-group"><label>N° Expediente</label><input id="d-exp" value="${rec.expediente||''}"></div><div class="form-group"><label>Sexo</label><select id="d-sexo"><option value="">—</option><option value="M"${rec.sexo==='M'?' selected':''}>Masculino</option><option value="F"${rec.sexo==='F'?' selected':''}>Femenino</option></select></div><div class="form-group"><label>Edad</label><input type="number" id="d-edad" value="${rec.edad||''}" min="0"></div><div class="form-group full"><label>Diagnóstico de ingreso</label><input id="d-diaging" value="${rec.diagIngreso||''}"></div><div class="form-group full"><label>Diagnóstico de defunción</label><input id="d-diagdef" value="${rec.diagDefuncion||''}"></div><div class="form-group"><label>Fecha de defunción</label><input type="date" id="d-fdef" value="${rec.fechaDefuncion||dk(cur)}"></div><div class="form-group"><label>Hora de defunción</label><input type="text" id="d-hdef" value="${rec.horaDefuncion||''}" placeholder="HH:MM" maxlength="5" style="font-family:'DM Mono',monospace" oninput="fmtHora(this)"></div><div class="form-group"><label>Médico tratante</label><input id="d-med" value="${rec.medico||''}"></div><div class="form-group"><label>Hora ingreso tanatorio</label><input type="text" id="d-htanin" value="${rec.horaIngresoTanatorio||''}" placeholder="HH:MM" maxlength="5" style="font-family:'DM Mono',monospace" oninput="fmtHora(this)"></div><div class="form-group"><label>Hora egreso tanatorio</label><input type="text" id="d-htaneg" value="${rec.horaEgresoTanatorio||''}" placeholder="HH:MM" maxlength="5" style="font-family:'DM Mono',monospace" oninput="fmtHora(this)"></div><div class="form-group"><label>Folio certificado de defunción</label><input id="d-folio" value="${rec.folioDefuncion||''}" placeholder="N° folio" style="font-family:'DM Mono',monospace"></div><div class="form-group full"><label>Observaciones</label><input id="d-obs" value="${rec.observaciones||''}"></div></div><div class="form-actions">${id?`<button class="btn btn-danger btn-sm" onclick="eliminar(${id},'def','modalDef')">🗑 Eliminar</button>`:''}<button class="btn btn-ghost" onclick="closeModal('modalDef')">Cancelar</button><button class="btn btn-success" onclick="guardarDefuncion(${id||0})">✓ Guardar</button></div>`; document.getElementById('modalDef').classList.add('open'); }
 
 async function guardarDefuncion(id){
   const d={ id:id||nid++,fecha:dk(cur), servicio:document.getElementById('d-srv').value, fechaIngreso:document.getElementById('d-fing').value, nombre:document.getElementById('d-nombre').value.trim(), expediente:document.getElementById('d-exp').value.trim().toUpperCase(), sexo:document.getElementById('d-sexo').value, edad:document.getElementById('d-edad').value, diagIngreso:document.getElementById('d-diaging').value.trim(), diagDefuncion:document.getElementById('d-diagdef').value.trim(), fechaDefuncion:document.getElementById('d-fdef').value, horaDefuncion:document.getElementById('d-hdef').value, medico:document.getElementById('d-med').value.trim(), horaIngresoTanatorio:document.getElementById('d-htanin').value, horaEgresoTanatorio:document.getElementById('d-htaneg').value, observaciones:document.getElementById('d-obs').value.trim(), folioDefuncion:document.getElementById('d-folio').value.trim() };
@@ -2016,7 +2029,7 @@ function renderConcentrado(){
   function detalleCateterPorTipo(arr,seccion,tipoObjetivo){
     const filas=[];
     arr.forEach(function(r){
-      [['accesoIV','accesoIV1Fecha','accesoIV1Retiro','accesoIV1Tipo'],['accesoIV2','accesoIV2Fecha','accesoIV2Retiro','accesoIV2Tipo']].forEach(function(slot){
+      [['accesoIV','accesoIV1Fecha','accesoIV1Retiro','accesoIV1Tipo'],['accesoIV2','accesoIV2Fecha','accesoIV2Retiro','accesoIV2Tipo'],['accesoIV3','accesoIV3Fecha','accesoIV3Retiro','accesoIV3Tipo']].forEach(function(slot){
         const campoTexto=slot[0],campoFecha=slot[1],campoRetiro=slot[2],campoTipo=slot[3];
         if(tipoCateterIV(r,campoTipo,campoTexto)!==tipoObjetivo) return;
         const ini=r[campoFecha]||''; if(!ini||!esFecha(ini)) return;
