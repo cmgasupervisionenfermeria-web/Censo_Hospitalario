@@ -38,6 +38,13 @@ nav{background:var(--az);padding:0 20px;display:flex;align-items:center;gap:0;he
 .date-nav button{background:#fff;border:1px solid var(--gris3);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:15px;font-family:inherit;transition:background .1s}
 .date-nav button:hover{background:var(--gris1)}
 .date-lbl{font-size:14px;font-weight:600;min-width:200px;text-align:center;color:var(--gris7)}
+.btn-cal{background:#fff;border:1px solid var(--gris3);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:14px;font-family:inherit;transition:background .1s}
+.btn-cal:hover{background:var(--gris1)}
+.date-picker-hidden{position:absolute;width:1px!important;height:1px;opacity:0;padding:0;border:0;pointer-events:none}
+.csv-group{display:flex;align-items:center;gap:4px}
+.csv-lbl{font-size:10px;font-weight:700;color:var(--gris4);text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
+.csv-group select{width:auto;padding:5px 6px;font-size:11px;border-radius:6px}
+.csv-group button{padding:5px 8px;font-size:11px}
 .turno-tabs{display:flex;gap:4px}
 .turno-tab{padding:6px 14px;border-radius:20px;border:1px solid var(--gris3);background:#fff;cursor:pointer;font-size:12px;font-weight:500;font-family:inherit;color:var(--gris5);transition:all .15s}
 .turno-tab.active{background:var(--az);color:#fff;border-color:var(--az)}
@@ -178,16 +185,21 @@ style="width:100%;padding:12px;font-size:20px;text-align:center;border:2px solid
 <button onclick="cambiarDia(-1)">‹</button>
 <span class="date-lbl" id="dateLabel"></span>
 <button onclick="cambiarDia(1)">›</button>
+<button class="btn-cal" onclick="abrirCalendario(this)" title="Ir a una fecha">📅</button>
+<input type="date" class="date-picker-hidden" onchange="irAFecha(this.value)">
 </div>
 <button class="btn btn-primary btn-sm" onclick="requirePin(()=>abrirModalPaciente(null,'hosp'))">+ Agregar paciente</button>
-<select id="csv-mes-hosp" style="padding:7px 10px;font-size:12px;border-radius:7px;border:1px solid var(--gris3)">
+<div class="csv-group">
+<span class="csv-lbl">CSV de:</span>
+<select id="csv-mes-hosp">
 <option value="0">Enero</option><option value="1">Febrero</option><option value="2">Marzo</option>
 <option value="3">Abril</option><option value="4">Mayo</option><option value="5">Junio</option>
 <option value="6">Julio</option><option value="7">Agosto</option><option value="8">Septiembre</option>
 <option value="9">Octubre</option><option value="10">Noviembre</option><option value="11">Diciembre</option>
 </select>
-<select id="csv-anio-hosp" style="padding:7px 10px;font-size:12px;border-radius:7px;border:1px solid var(--gris3)"><option>2026</option><option>2027</option></select>
-<button class="btn btn-ghost btn-sm" onclick="exportarCSV('hosp')">↓ CSV mensual</button>
+<select id="csv-anio-hosp"><option>2026</option><option>2027</option></select>
+<button class="btn btn-ghost btn-sm" onclick="exportarCSV('hosp')">↓ CSV</button>
+</div>
 <button class="btn btn-ghost btn-sm" onclick="requirePin(()=>abrirModalBloqueos('hosp'))">🔒 Bloquear habitación</button>
 <span id="hosp-camas" style="background:var(--gris1);padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;color:var(--gris6);margin-left:auto"></span>
 </div>
@@ -216,16 +228,21 @@ style="width:100%;padding:12px;font-size:20px;text-align:center;border:2px solid
 <button onclick="cambiarDia(-1)">‹</button>
 <span class="date-lbl" id="dateLabelUCI"></span>
 <button onclick="cambiarDia(1)">›</button>
+<button class="btn-cal" onclick="abrirCalendario(this)" title="Ir a una fecha">📅</button>
+<input type="date" class="date-picker-hidden" onchange="irAFecha(this.value)">
 </div>
 <button class="btn btn-primary btn-sm" onclick="requirePin(()=>abrirModalPaciente(null,'uci'))">+ Agregar paciente UCI/UCIM</button>
-<select id="csv-mes-uci" style="padding:7px 10px;font-size:12px;border-radius:7px;border:1px solid var(--gris3)">
+<div class="csv-group">
+<span class="csv-lbl">CSV de:</span>
+<select id="csv-mes-uci">
 <option value="0">Enero</option><option value="1">Febrero</option><option value="2">Marzo</option>
 <option value="3">Abril</option><option value="4">Mayo</option><option value="5">Junio</option>
 <option value="6">Julio</option><option value="7">Agosto</option><option value="8">Septiembre</option>
 <option value="9">Octubre</option><option value="10">Noviembre</option><option value="11">Diciembre</option>
 </select>
-<select id="csv-anio-uci" style="padding:7px 10px;font-size:12px;border-radius:7px;border:1px solid var(--gris3)"><option>2026</option><option>2027</option></select>
-<button class="btn btn-ghost btn-sm" onclick="exportarCSV('uci')">↓ CSV mensual</button>
+<select id="csv-anio-uci"><option>2026</option><option>2027</option></select>
+<button class="btn btn-ghost btn-sm" onclick="exportarCSV('uci')">↓ CSV</button>
+</div>
 <button class="btn btn-ghost btn-sm" onclick="requirePin(()=>abrirModalBloqueos('uci'))">🔒 Bloquear habitación</button>
 <span id="uci-camas" style="background:var(--gris1);padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;color:var(--gris6);margin-left:auto"></span>
 </div>
@@ -254,16 +271,21 @@ style="width:100%;padding:12px;font-size:20px;text-align:center;border:2px solid
 <button onclick="cambiarDia(-1)">‹</button>
 <span class="date-lbl" id="dateLabelDef"></span>
 <button onclick="cambiarDia(1)">›</button>
+<button class="btn-cal" onclick="abrirCalendario(this)" title="Ir a una fecha">📅</button>
+<input type="date" class="date-picker-hidden" onchange="irAFecha(this.value)">
 </div>
 <button class="btn btn-primary btn-sm" onclick="requirePin(()=>abrirModalDefuncion())">+ Registrar defunción</button>
-<select id="csv-mes-def" style="padding:7px 10px;font-size:12px;border-radius:7px;border:1px solid var(--gris3)">
+<div class="csv-group">
+<span class="csv-lbl">CSV de:</span>
+<select id="csv-mes-def">
 <option value="0">Enero</option><option value="1">Febrero</option><option value="2">Marzo</option>
 <option value="3">Abril</option><option value="4">Mayo</option><option value="5">Junio</option>
 <option value="6">Julio</option><option value="7">Agosto</option><option value="8">Septiembre</option>
 <option value="9">Octubre</option><option value="10">Noviembre</option><option value="11">Diciembre</option>
 </select>
-<select id="csv-anio-def" style="padding:7px 10px;font-size:12px;border-radius:7px;border:1px solid var(--gris3)"><option>2026</option><option>2027</option></select>
-<button class="btn btn-ghost btn-sm" onclick="exportarCSV('def')">↓ CSV mensual</button>
+<select id="csv-anio-def"><option>2026</option><option>2027</option></select>
+<button class="btn btn-ghost btn-sm" onclick="exportarCSV('def')">↓ CSV</button>
+</div>
 </div>
 <div class="card">
 <div class="card-header">
@@ -462,6 +484,28 @@ function nasChip(r){ const n=inferirNAS(r); return `<span style="background:${n.
 function showPage(id,btn){ document.querySelectorAll('.page').forEach(p=>p.classList.remove('active')); document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active')); document.getElementById('page-'+id).classList.add('active'); if(btn) btn.classList.add('active'); actualizarFechas(); if(id==='hosp') renderHosp(); if(id==='uci') renderUCI(); if(id==='def') renderDef(); if(id==='concentrado') renderConcentrado(); if(id==='buscar') renderBuscar(); }
 function cambiarDia(d){
   cur.setDate(cur.getDate()+d);
+  refrescarTrasCambioDeFecha();
+}
+// Calendario expandible junto a la fecha: el boton 📅 abre el selector
+// nativo del <input type="date"> que lo acompaña (oculto visualmente,
+// pero sigue funcionando con showPicker()/focus()), para saltar
+// directo a cualquier día del mes sin tener que darle ‹ › uno por uno.
+function abrirCalendario(btn){
+  const input=btn.nextElementSibling;
+  if(!input) return;
+  input.value=dk(cur);
+  if(input.showPicker){ try{ input.showPicker(); return; }catch(e){} }
+  input.focus();
+}
+function irAFecha(valor){
+  if(!valor||!esFecha(valor)) return;
+  const partes=valor.split('-').map(Number);
+  const nueva=new Date(partes[0],partes[1]-1,partes[2]);
+  if(isNaN(nueva.getTime())) return;
+  cur=nueva; cur.setHours(0,0,0,0);
+  refrescarTrasCambioDeFecha();
+}
+function refrescarTrasCambioDeFecha(){
   const vf=document.getElementById('det-inline-row');
   if(vf) vf.parentNode.removeChild(vf);
   document.querySelectorAll('tr.sel-row').forEach(function(r){
