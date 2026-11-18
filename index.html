@@ -553,7 +553,7 @@ let concentradoEspData={};
 // Detalle de pacientes detrás de las tarjetas de Caídas/LPP/Mortalidad del
 // Concentrado — se recalcula en cada renderConcentrado() y lo usa
 // verDetalleIndicador() al hacer clic en una de esas tres tarjetas.
-let concentradoDetalleData={caidas:[],lpp:[],mortalidad:[],foley:[],cvp:[],cvc:[],reingresos:[]};
+let concentradoDetalleData={caidas:[],lpp:[],mortalidad:[],foley:[],cvp:[],cvc:[],reingresos:[],altasVoluntarias:[]};
 function escAttr(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
 let concentradoEsperandoHistorial=false;
 let buscarEsperandoHistorial=false;
@@ -2002,6 +2002,22 @@ function renderConcentrado(){
                                  .sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||''));
 
   // ══════════════════════════════════════════════════════════
+  // ALTAS VOLUNTARIAS (incluye Traslados)
+  // ══════════════════════════════════════════════════════════
+  // A petición de la usuaria: un traslado a otra institución se procesa
+  // administrativamente como una alta voluntaria (el paciente/familia
+  // firma el alta voluntaria para poder trasladarse), así que "Traslado"
+  // cuenta de forma implícita como alta voluntaria para este indicador.
+  // Esto es DISTINTO de un traslado interno Hosp<->UCI (esTrasladoInterno),
+  // que no es un egreso real y ya se excluye vía egresosRealesParaReingreso.
+  const altasVolDetalle=egresosRealesParaReingreso
+    .filter(r=>r.destinoEgreso==='Alta voluntaria'||r.destinoEgreso==='Traslado')
+    .map(r=>({seccion:DB.uci.includes(r)?'uci':'hosp',habitacion:r.habitacion,nombre:r.nombre,fecha:r.fechaEgreso||'',destino:r.destinoEgreso,diagnostico:r.diagnostico||''}))
+    .sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||''));
+  const nAltasVol=altasVolDetalle.length;
+  const pctAltasVol=egresosRealesParaReingreso.length>0?Math.round(nAltasVol/egresosRealesParaReingreso.length*1000)/10:0;
+
+  // ══════════════════════════════════════════════════════════
   // DÍAS-DISPOSITIVO (Sonda Foley / Catéter CVP / Catéter CVC)
   // ══════════════════════════════════════════════════════════
   // Mismo principio que pacDia()/pacDiaBloqueo(): cuenta cuántos días,
@@ -2099,7 +2115,7 @@ function renderConcentrado(){
   const diasCVCH=cvcDetalleH.reduce((s,r)=>s+r.dias,0), diasCVCU=cvcDetalleU.reduce((s,r)=>s+r.dias,0), diasCVCTotal=diasCVCH+diasCVCU;
   const cvcDetalle=[...cvcDetalleH,...cvcDetalleU].sort((a,b)=>(a.fechaInstalacion||'').localeCompare(b.fechaInstalacion||''));
 
-  concentradoDetalleData={caidas:caidasDetalle,lpp:lppDetalle,mortalidad:mortalidadDetalle,foley:foleyDetalle,cvp:cvpDetalle,cvc:cvcDetalle,reingresos:reingresosDetalle};
+  concentradoDetalleData={caidas:caidasDetalle,lpp:lppDetalle,mortalidad:mortalidadDetalle,foley:foleyDetalle,cvp:cvpDetalle,cvc:cvcDetalle,reingresos:reingresosDetalle,altasVoluntarias:altasVolDetalle};
 
   const hoyStr=dk(new Date());
   const fechaRefH=finMes<=hoyStr?finMes:hoyStr;
@@ -2250,6 +2266,7 @@ function renderConcentrado(){
       ${ic('var(--az2)','Índice de Rotación (Piso)','egresos piso ÷ 18 camas',rotacion+' veces',`${egresosHosp.length} egresos ÷ ${CAMAS_HOSP} camas. Meta ≥3/mes`,Math.min(rotacion/5*100,100))}
       ${ic('var(--cyan)','Intervalo de Sustitución','horas entre egreso e ingreso — misma hab.',intervaloSust!==null?intervaloSust+' h':'—',intervaloSust!==null?'Promedio parejas egreso-ingreso consecutivos. Meta <4h':'Requiere horaEgreso y horaIngreso registradas.',intervaloSust?Math.min(intervaloSust/8*100,100):0)}
       ${ic('var(--morado)','Reingresos a 30 días','(reingresos ÷ egresos reales) × 100',pctReingresos!==null?pctReingresos+'%':'—',`${nReingresos} reingresaron en ≤30 días de ${egresosRealesParaReingreso.length} egresos reales (no cuenta traslados internos Hosp↔UCI)`,Math.min(pctReingresos||0,100),"verDetalleIndicador('reingresos')")}
+      ${ic('var(--naranja)','Altas Voluntarias','(altas voluntarias + traslados ÷ egresos reales) × 100',pctAltasVol+'%',`${nAltasVol} de ${egresosRealesParaReingreso.length} egresos reales (incluye Traslado: se procesa como alta voluntaria)`,Math.min(pctAltasVol,100),"verDetalleIndicador('altasVoluntarias')")}
     </div>
     <div class="ind-grid-3" style="margin-bottom:12px">
       <div class="group-title">⚠ Seguridad del Paciente</div>
@@ -2463,7 +2480,14 @@ const DETALLE_INDICADOR_CFG={
     {header:'Nombre',render:p=>p.nombre||'—'},
     {header:'Fecha de reingreso',render:p=>p.fecha||'—'},
     {header:'Días desde el egreso anterior',render:p=>p.diasEntre!==null&&p.diasEntre!==undefined?p.diasEntre:'—'}
-  ],rowClick:(p,i)=>`verDetalleReingreso(${i})`}
+  ],rowClick:(p,i)=>`verDetalleReingreso(${i})`},
+  altasVoluntarias:{titulo:'🟠 Altas Voluntarias',nota:'Incluye "Traslado" junto con "Alta voluntaria": un traslado a otra institución se procesa administrativamente como alta voluntaria. No incluye traslados internos Hosp↔UCI/UCIM (no son un egreso real).',cols:[
+    {header:'Hab./Sala',render:HAB_O_SALA},
+    {header:'Nombre',render:p=>p.nombre||'—'},
+    {header:'Fecha de egreso',render:p=>p.fecha||'—'},
+    {header:'Destino',render:p=>p.destino==='Traslado'?'<span style="color:var(--az2);font-weight:600">Traslado</span>':'<span style="color:var(--naranja);font-weight:600">Alta voluntaria</span>'},
+    {header:'Diagnóstico',render:p=>p.diagnostico||'—'}
+  ]}
 };
 function verDetalleIndicador(tipo){
   const cfg=DETALLE_INDICADOR_CFG[tipo];
